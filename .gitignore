@@ -1,0 +1,6 @@
+data/
+sdk2/
+sdk3/
+lib/qt4reactor*
+**/*.pyc
+*.m
