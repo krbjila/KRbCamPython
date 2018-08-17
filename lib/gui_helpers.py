@@ -422,6 +422,9 @@ class ImageWindow(QtGui.QWidget):
 		except AttributeError:
 			pass
 
+	def setData(self, data):
+		self.data = self.processData(data)
+		
 	# Determine which image to display
 	def getConfig(self):
 		if self.kSelectButton.isChecked():
@@ -433,30 +436,22 @@ class ImageWindow(QtGui.QWidget):
 			od = 0
 		return (fk, od)
 
-	# Load in the data
-	# Currently this is a bit clunky
-	# The main GUI handles saving the data to csv file
-	# The ImageWindow then opens the csv file and re-imports the data
-	def loadData(self, folder, fileNumber):
-		data = []
+	# Separate images, get OD image
+	def processData(self, data):
+		out = []
 
-		# Each shot in the kinetic series has a different filenumber
+		# Separate kinetic series, od series
 		for i in range(KRBCAM_FK_SERIES_LENGTH):
+			arr = data[i]
 			od_series = []
-			path = folder + KRBCAM_FILENAME_BASE + str(fileNumber) + chr(ord('a') + i) + ".csv"
 			
-			# Read the data into a numpy array
-			with open(path, 'r') as f:
-				arr = np.loadtxt(f, delimiter=',', skiprows=0)
-				
-				# Each file has OD_SERIES_LENGTH images in it
-				# (i.e., shadow, light, and dark frames)
-				# Need to separate into distinct arrays
-				num_images = KRBCAM_OD_SERIES_LENGTH
-				(length, x) = np.shape(arr)
-				length = length / num_images
-				for j in range(num_images):
-					od_series.append(arr[i*length:(i+1)*length - 1, : ])
+			num_images = KRBCAM_OD_SERIES_LENGTH
+			(length, x) = np.shape(arr)
+			length = length / num_images
+
+			# Separate OD series			
+			for j in range(num_images):
+				od_series.append(arr[j*length:(j+1)*length])
 
 			# Calculate OD of the image assuming no saturation
 			shadow = od_series[0] - od_series[2]
@@ -465,13 +460,13 @@ class ImageWindow(QtGui.QWidget):
 				od = np.log(background / shadow)
 				od[od == np.inf] = 0
 			od_series = [od] + od_series
-			data.append(od_series)
+			out.append(od_series)
 
-		# Store data
+		# Return re-arranged data
 		# Data is a 2-index array
 		# First index runs over kinetic series
 		# Second index runs over OD series
-		self.data = data
+		return out
 
 	# Plot the data
 	def plot(self, data):
@@ -492,7 +487,6 @@ class ImageWindow(QtGui.QWidget):
 		    row = int(y + 0.5)
 		    if col >= 0 and col < numcols and row >= 0 and row < numrows:
 		        z = data[row, col]
-		        # return 'x=%1.4f, y=%1.4f, z=%1.4f' % (x, y, z)
 		        return '({:},{:}), z={:.2f}'.format(int(x),int(y),z)
 		    else:
 		        return 'x=%1.4f, y=%1.4f' % (x, y)

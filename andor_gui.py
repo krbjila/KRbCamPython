@@ -17,6 +17,10 @@ from gui_helpers import *
 from andor_helpers import *
 from andor_class import KRbFastKinetics
 
+import qtreactor.pyqt4reactor
+qtreactor.pyqt4reactor.install()
+from twisted.internet import reactor
+
 # Main GUI Program
 class MainWindow(QtGui.QWidget):
 	# Dictionary for holding camera configuration
@@ -276,12 +280,16 @@ class MainWindow(QtGui.QWidget):
 		self.gCounterODSeries = 0
 
 		# Start acquiring data!
-		self.startAcquisition()
+		# dataArray is passed between startAcquisition and checkForData methods
+		# to hold data
+		# Hopefully this does not result in memory leaks...?
+		dataArray = []
+		self.startAcquisition(dataArray)
 
 	# Start acquisition
 	# Tells the camera to start acquiring data
 	# Also sets up a deferred call to the checkForData method
-	def startAcquisition(self):
+	def startAcquisition(self, data):
 		# Start acquiring
 		ret = self.AndorCamera.StartAcquisition()
 		msg = self.AndorCamera.handleErrors(ret, "StartAcquisition error: ", "Acquiring...")
@@ -291,10 +299,11 @@ class MainWindow(QtGui.QWidget):
 		else:
 			# Set a timer for looking for the data
 			self.appendToStatus("Acquiring...\n")
-			self.acquireCallback = self.reactor.callLater(KRBCAM_ACQ_TIMER, self.checkForData)
+			self.acquireCallback = self.reactor.callLater(KRBCAM_ACQ_TIMER, self.checkForData, data)
 
 	# Method that fires after the KRBCAM_ACQ_TIMER time has elapsed
-	def checkForData(self):
+	# data argument holds list of numpy arrays that contain the data collected so far in this acquisition
+	def checkForData(self, data):
 		# Check if the camera is still acquiring:
 		(ret, status) = self.AndorCamera.GetStatus()
 		msg = self.AndorCamera.handleErrors(ret, "GetStatus error: ", "")
@@ -306,7 +315,7 @@ class MainWindow(QtGui.QWidget):
 			# If still acquiring, run the timer again
 			if status == self.AndorCamera.DRV_ACQUIRING:
 				# Check back for new data later
-				self.acquireCallback = self.reactor.callLater(KRBCAM_ACQ_TIMER, self.checkForData)
+				self.acquireCallback = self.reactor.callLater(KRBCAM_ACQ_TIMER, self.checkForData, data)
 
 			# If idle, then data has been acquired
 			elif status == self.AndorCamera.DRV_IDLE:
@@ -317,11 +326,19 @@ class MainWindow(QtGui.QWidget):
 				self.appendToStatus("Acquired {} of {} in series.\n".format(self.gCounterODSeries, KRBCAM_OD_SERIES_LENGTH))
 				
 				# Get the data off of the camera
-				self.getData()
+				newData = self.getData()
+
+				# Append it to the data array
+				if self.gCounterODSeries > 1:
+					for i in range(len(data)):
+						data[i] = np.concatenate((data[i], newData[i]))
+				else:
+					for i in range(len(newData)):
+						data.append(np.array(newData[i]))
 
 				# If need to take more in the OD series, acquire again
 				if self.gCounterODSeries < KRBCAM_OD_SERIES_LENGTH:
-					self.startAcquisition()
+					self.startAcquisition(data)
 				# Otherwise we are done acquiring!
 				else:
 
@@ -331,6 +348,16 @@ class MainWindow(QtGui.QWidget):
 
 					# Disable abort button, enable acquire button
 					self.acquireAbortStatus.abort()
+
+					# 
+					for j in range(KRBCAM_FK_SERIES_LENGTH):
+						self.saveData(data[j], j)
+					self.appendToStatus("Data saved.\n")
+
+					self.imageWindow.setData(data)
+					self.imageWindow.displayData()
+					self.gConfig['fileNumber'] += 1
+					self.configForm.setFormData(self.gConfig)
 
 			# Otherwise some error has occurred in the acquisition
 			else:
@@ -360,6 +387,8 @@ class MainWindow(QtGui.QWidget):
 			# Need to convert to numpy array
 			data = np.ctypeslib.as_array(data)
 
+			out = []
+
 			# Data is returned as one long array
 			# Need to split it up to get the individual images
 			num_images = KRBCAM_FK_SERIES_LENGTH
@@ -369,36 +398,23 @@ class MainWindow(QtGui.QWidget):
 			for i in range(num_images):
 				# Get the image and resize to the correct dimensions
 				image = np.resize(data[i*image_length : (i+1)*image_length-1], (dy, dx))
+				out.append(image)
 
-				# Generate the file path
-				path = self.gConfig['savePath'] + KRBCAM_FILENAME_BASE + str(self.gConfig['fileNumber']) + chr(ord('a') + i) + ".csv"
+			return out
 
-				# If the first shot in the series, make sure the file is empty before writing
-				if self.gCounterODSeries == 1:
-					mode = 'w'
-				# Otherwise, data is already in the file so we should append
-				else:
-					mode = 'a'
-
-				# Open the file and write the data,
-				# comma-delimited
-				with open(path, mode) as f:
-					for j in range(dy):
-						for k in range(dx):
-							f.write(str(image[j][k]))
-							if k < dx - 1:
-								f.write(',')
-						f.write('\n')
-
-		# If the series is done, then display the data and increment the fileNumber
-		if self.gCounterODSeries == KRBCAM_OD_SERIES_LENGTH:
-			self.imageWindow.loadData(self.gConfig['savePath'], self.gConfig['fileNumber'])
-			self.imageWindow.displayData()
-			self.gConfig['fileNumber'] += 1
-			self.configForm.setFormData(self.gConfig)
-		
-		self.appendToStatus("Data saved.\n")
-		return 0
+	# Save data array
+	def saveData(self, data_array, kinIndex):
+		path = self.gConfig['savePath'] + KRBCAM_FILENAME_BASE + str(self.gConfig['fileNumber']) + chr(ord('a') + kinIndex) + ".csv"
+		# Open the file and write the data,
+		# comma-delimited
+		dy, dx = np.shape(data_array)
+		with open(path, 'w') as f:
+			for j in range(dy):
+				for k in range(dx):
+					f.write(str(data_array[j][k]))
+					if k < dx - 1:
+						f.write(',')
+				f.write('\n')
 
 	# Abort an acquisition
 	def abortAcquisition(self):
@@ -512,6 +528,8 @@ class MainWindow(QtGui.QWidget):
 	# The window will close when the function returns if we run the method event.accept()
 	# If we run event.ignore(), the window does not close and program keeps running
 	def closeEvent(self, event):
+		flag = False
+
 		# Try to stop the acquisition loop
 		try:
 			self.acquireCallback.cancel()
@@ -523,89 +541,68 @@ class MainWindow(QtGui.QWidget):
 		except:
 			pass
 
-		# Turn off the cooler
-		ret = self.coolerOff()
-		# If an error, notify the user
-		if ret == -1:
+		# Try to get the temperature
+		(err, temp) = self.checkTemp()
+
+		# If an error getting the temperature, notify the user
+		if err == -1:
 			msgBox = QtGui.QMessageBox()
-			msgBox.setText("Error stopping the cooler.")
+			msgBox.setText("Error getting CCD temperature.")
 			msgBox.setInformativeText("Do you want to force the SDK to close?")
 			msgBox.setStandardButtons(QtGui.QMessageBox.Ok | QtGui.QMessageBox.Cancel)
 			msgBox.setDefaultButton(QtGui.QMessageBox.Cancel)
 			ret = msgBox.exec_()
 
-			# If the user cancels, then stop trying to quit
-			if ret == QtGui.QMessageBox.Cancel:
-				event.ignore()
-			# Otherwise, try to shut down
-			else:
-				self.tryToCloseNicely()
-				event.accept()
-		# Else cooler stopped correctly
-		else:
-			# Try to get the temperature
-			(err, temp) = self.checkTemp()
+			# Force quit if user says yes
+			if ret == QtGui.QMessageBox.Ok:
+				flag = True
 
-			# If an error getting the temperature, notify the user
-			if err == -1:
+		# Otherwise, we got the temperature correctly
+		else:
+			# Check that the temperature is still colder than the safe temperature for shut down
+			# For iXon, this is -20 degrees C
+			# The manual says that shutting down the SDK when the camera is colder than this
+			# can lead to damage
+			#
+			# If the temperature is too cold, warn the user
+			# Do not give them the option to shut down! If the program has made it to this point,
+			# the cooler has correctly shut off and the GetTemperature function is working
+			# so all the user has to do is wait for the camera to warm up to a safe temperature
+			if temp < KRBCAM_SAFE_TEMP: # -20 for iXon
 				msgBox = QtGui.QMessageBox()
-				msgBox.setText("Error getting CCD temperature.")
-				msgBox.setInformativeText("Do you want to force the SDK to close?")
+				msgBox.setText("CCD temperature is too low.")
+				msgBox.setInformativeText("Current temp is {}, safe temp is >{}.\nThe camera should be warming up.".format(temp, KRBCAM_SAFE_TEMP))
+				msgBox.setStandardButtons(QtGui.QMessageBox.Ok)
+				ret = msgBox.exec_()
+
+			# Otherwise, the camera should be safe to turn off
+			# But still warn the user as a double check
+			else:
+				msgBox = QtGui.QMessageBox()
+				msgBox.setText("CCD temperature is safe for shut down.")
+				msgBox.setInformativeText("Current temp is {}, safe temp is >{}.\nDo you want to stop the SDK?".format(temp, KRBCAM_SAFE_TEMP))
 				msgBox.setStandardButtons(QtGui.QMessageBox.Ok | QtGui.QMessageBox.Cancel)
 				msgBox.setDefaultButton(QtGui.QMessageBox.Cancel)
 				ret = msgBox.exec_()
 
-				# If the user cancels, stop trying to quit
-				if ret == QtGui.QMessageBox.Cancel:
-					event.ignore()
-				# Otherwise, try to shut down
-				else:
-					self.tryToCloseNicely()
-					event.accept()
+				# On ok, kill program
+				if ret == QtGui.QMessageBox.Ok:
+					flag = True
 
-			# Otherwise, we got the temperature correctly
-			else:
-				# Check that the temperature is still colder than the safe temperature for shut down
-				# For iXon, this is -20 degrees C
-				# The manual says that shutting down the SDK when the camera is colder than this
-				# can lead to damage
-				#
-				# If the temperature is too cold, warn the user
-				# Do not give them the option to shut down! If the program has made it to this point,
-				# the cooler has correctly shut off and the GetTemperature function is working
-				# so all the user has to do is wait for the camera to warm up to a safe temperature
-				if temp < KRBCAM_SAFE_TEMP: # -20 for iXon
-					msgBox = QtGui.QMessageBox()
-					msgBox.setText("CCD temperature is too low.")
-					msgBox.setInformativeText("Current temp is {}, safe temp is >{}.\nThe camera should be warming up.".format(temp, KRBCAM_SAFE_TEMP))
-					msgBox.setStandardButtons(QtGui.QMessageBox.Ok)
-					ret = msgBox.exec_()
-
-					# When the message box comes back, just restart the loop to check the temperature
-					# This way the current temperature field on the GUI should resume updating
-					if ret == QtGui.QMessageBox.Ok:
-						self.tempCallback = self.reactor.callLater(KRBCAM_TEMP_TIMER, self.checkTempLoop)
-						event.ignore()
-				# Otherwise, the camera should be safe to turn off
-				# But still warn the user as a double check
-				else:
-					msgBox = QtGui.QMessageBox()
-					msgBox.setText("CCD temperature is safe for shut down.")
-					msgBox.setInformativeText("Current temp is {}, safe temp is >{}.\nDo you want to stop the SDK?".format(temp, KRBCAM_SAFE_TEMP))
-					msgBox.setStandardButtons(QtGui.QMessageBox.Ok | QtGui.QMessageBox.Cancel)
-					msgBox.setDefaultButton(QtGui.QMessageBox.Cancel)
-					ret = msgBox.exec_()
-
-					# If user cancels, do nothing
-					if ret == QtGui.QMessageBox.Cancel:
-						event.ignore()
-					# Otherwise, try to shut down
-					else:
-						self.tryToCloseNicely()
-						event.accept()
+		if flag:
+			self.coolerOff()
+			self.tryToCloseNicely()
+			event.accept()
+		else:
+			self.tempCallback = self.reactor.callLater(KRBCAM_TEMP_TIMER, self.checkTempLoop)
+			event.ignore()
 
 	# Last actions
 	def tryToCloseNicely(self):
+		try:
+			del(self.AndorCamera)
+		except: pass
+
 		# Try to end the acquisition loop
 		try:
 			self.acquireCallback.cancel()
@@ -621,14 +618,12 @@ class MainWindow(QtGui.QWidget):
 			self.reactor.stop()
 		except Exception as e:
 			print e
-		
+
 
 if __name__ == '__main__':
     a = QtGui.QApplication([])
-    import qt4reactor 
-    qt4reactor.install()
-    from twisted.internet import reactor
+    a.setQuitOnLastWindowClosed(True)
     widget = MainWindow(reactor)
     widget.show()
-    reactor.run()
-    a.quit()
+    reactor.runReturn()
+    sys.exit(a.exec_())

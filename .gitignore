@@ -4,3 +4,7 @@ sdk3/
 lib/qt4reactor*
 **/*.pyc
 *.m
+test.py
+*backup.py
+lib/*backup.py
+lib/qtreactor*
