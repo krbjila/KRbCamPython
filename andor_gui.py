@@ -244,7 +244,7 @@ class MainWindow(QtGui.QWidget):
 			return 0
 		
 	# Setup acquisition
-	def setupAcquisition(self):
+	def setupAcquisition(self, flagVerbose=True):
 		# armiXon sets the basic acquisition details
 		# e.g., acquisition mode, read mode, shutter mode, trigger mode, em gain mode
 		(errf, errm) = self.AndorCamera.armiXon()
@@ -254,7 +254,8 @@ class MainWindow(QtGui.QWidget):
 			self.throwErrorMessage("KRbFastKinetics.armiXon error!", errm)
 			return -1
 		else:
-			self.appendToStatus(errm)
+			if flagVerbose:
+				self.appendToStatus(errm)
 			self.gCamInfo = self.AndorCamera.camInfo
 
 		# armiXon gets some information from the hardware
@@ -270,7 +271,7 @@ class MainWindow(QtGui.QWidget):
 		if errf:
 			self.throwErrorMessage("KRbFastKinetics.setupAcquisition error!", errm)
 			return -2
-		else:
+		elif flagVerbose:
 			self.appendToStatus(errm)
 
 		# Enable abort button, disable acquire button
@@ -345,19 +346,25 @@ class MainWindow(QtGui.QWidget):
 					########################## TO DO ###########################
 					######## Need to add looping functionality here ############
 					############################################################
-
-					# Disable abort button, enable acquire button
-					self.acquireAbortStatus.abort()
-
-					# 
+ 
+ 					# Save data
 					for j in range(KRBCAM_FK_SERIES_LENGTH):
 						self.saveData(data[j], j)
 					self.appendToStatus("Data saved.\n")
 
+					# Display the data
 					self.imageWindow.setData(data)
 					self.imageWindow.displayData()
 					self.gConfig['fileNumber'] += 1
 					self.configForm.setFormData(self.gConfig)
+
+					# if not looping:
+					if not self.gFlagLoop:
+						# Disable abort button, enable acquire button
+						self.acquireAbortStatus.abort()
+					# if looping:
+					else:
+						self.setupAcquisition(False)
 
 			# Otherwise some error has occurred in the acquisition
 			else:

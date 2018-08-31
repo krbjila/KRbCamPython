@@ -4,7 +4,7 @@
 
 KRBCAM_ACQ_MODE = 4 				# 4 is Fast Kinetics
 KRBCAM_READ_MODE = 4 				# 4 is Image
-KRBCAM_TRIGGER_MODE = 0				# 0 is Internal 
+KRBCAM_TRIGGER_MODE = 1				# 0 is Internal, 1 is External
 KRBCAM_EM_MODE = 0					# 0 is Normal
 KRBCAM_EXPOSED_ROWS = 512			# Exposed rows on CCD for FK
 KRBCAM_USE_INTERNAL_SHUTTER = 1		# 1 for no, 0 for yes
@@ -24,7 +24,7 @@ KRBCAM_SAFE_TEMP = -20				# Celsius
 KRBCAM_FAN_MODE = 0					# 0: full, 1: low, 2: off
 
 KRBCAM_ACQ_TIMER = 0.5				# 0.5 s for acquisition loop
-KRBCAM_LOOP_ACQ = False				# Loop acquisition?
+KRBCAM_LOOP_ACQ = True				# Loop acquisition?
 
 KRBCAM_FILENAME_BASE = 'iXon_img'
 
@@ -36,7 +36,7 @@ default_config = {
 	'dy': '400',
 	'emGain': '1',
 	'emEnable': False,
-	'savePath': 'C:\Users\KRbG2\Desktop\Kyle\\andor\python\\andor_gui\data\\',
+	'savePath': 'C:\Users\Ye Lab\Desktop\Kyle\\andor\python\\andor_gui\data\\',
 	'binning': True
 }
 
