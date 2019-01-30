@@ -20,6 +20,8 @@ layout_params = {
 
 # Config form for user input for setting up acquisition parameters
 class ConfigForm(QtGui.QWidget):
+	mode = KRBCAM_ACQ_MODE_FK
+
 	# Initialize
 	def __init__(self, Parent=None):
 		super(ConfigForm, self).__init__(Parent)
@@ -83,8 +85,12 @@ class ConfigForm(QtGui.QWidget):
 				# Files are saved as KRBCAM_FILENAME_BASE + filenumber + kinetics index + .csv
 				# where kinetics index is a, b, etc. to number the images in the kinetics series
 				# e.g., a possible file number is iXon_img10a.csv
-				ind1 = len(KRBCAM_FILENAME_BASE)
-				ind2 = file.find('.csv') - 1 # minus 1 to get rid of kinetics index
+				if self.mode == KRBCAM_ACQ_MODE_FK:
+					ind1 = len(KRBCAM_FILENAME_BASE_FK)
+					ind2 = file.find('.csv') - 1 # minus 1 to get rid of kinetics index
+				elif self.mode == KRBCAM_ACQ_MODE_SINGLE:
+					ind1 = len(KRBCAM_FILENAME_BASE_IMAGE)
+					ind2 = file.find('.csv')
 				
 				# Compare file number, if it's bigger than set fileNumber to 1 greater than that
 				try:
@@ -220,13 +226,45 @@ class ConfigForm(QtGui.QWidget):
 			self.emGainEdit.setDisabled(True)
 			self.emGainEdit.setStyleSheet("color: rgb(0,0,0);")
 
+	# Control labels based on acquisition mode
+	def controlAcquireMode(self):
+		if self.acquireEdit.currentIndex() == 0:
+			self.vssStatic.setText("VSS Speed")
+		else:
+			self.vssStatic.setText("FKVS Speed")
+
+	# Freeze the form when acquisition is in progress
+	def freezeForm(self, acquiring):
+		self.acquireEdit.setDisabled(acquiring)
+		self.exposureEdit.setDisabled(acquiring)
+		self.emEnableControl.setDisabled(acquiring)
+		self.emGainEdit.setDisabled(acquiring)
+		self.adChannelControl.setDisabled(acquiring)
+		self.hssControl.setDisabled(acquiring)
+		self.preAmpGainControl.setDisabled(acquiring)
+		self.xOffsetEdit.setDisabled(acquiring)
+		self.yOffsetEdit.setDisabled(acquiring)
+		self.dxEdit.setDisabled(acquiring)
+		self.dyEdit.setDisabled(acquiring)
+		self.binningControl.setDisabled(acquiring)
+		self.vssControl.setDisabled(acquiring)
+		self.savePathEdit.setDisabled(acquiring)
+		self.fileNumberEdit.setDisabled(acquiring)
+
 	# Populate the form with widgets
 	def populate(self):
 		self.acquireStatic = QtGui.QLabel("Acquire Mode", self)
-		self.acquireEdit = QtGui.QLineEdit(self)
-		self.acquireEdit.setText("Fast Kinetics")
-		self.acquireEdit.setDisabled(True)
+		self.acquireEdit = QtGui.QComboBox(self)
+		self.acquireEdit.addItem("Image")
+		self.acquireEdit.addItem("Fast Kinetics")
+		self.acquireEdit.setDisabled(False)
 		self.acquireEdit.setStyleSheet("color: rgb(0,0,0);")
+
+		if KRBCAM_ACQ_MODE == 4:
+			self.acquireEdit.setCurrentIndex(1)
+		elif KRBCAM_ACQ_MODE == 1:
+			self.acquireEdit.setCurrentIndex(0)
+		self.acquireEdit.currentIndexChanged.connect(self.controlAcquireMode)
 
 		self.triggerStatic = QtGui.QLabel("Trigger Mode", self)
 		self.triggerEdit = QtGui.QLineEdit(self)
@@ -275,7 +313,10 @@ class ConfigForm(QtGui.QWidget):
 		self.binningStatic = QtGui.QLabel("Bin 2x2?", self)
 		self.binningControl = QtGui.QCheckBox(self)
 
-		self.vssStatic = QtGui.QLabel("FKVS Speed", self)
+		if KRBCAM_ACQ_MODE == 4:
+			self.vssStatic = QtGui.QLabel("FKVS Speed", self)
+		elif KRBCAM_ACQ_MODE == 1:
+			self.vssStatic = QtGui.QLabel("VSS Speed", self)
 		self.vssControl = QtGui.QComboBox(self)
 
 		self.savePathStatic = QtGui.QLabel("Save to:", self)
@@ -503,7 +544,12 @@ class ImageWindow(QtGui.QWidget):
 
 		# Default od and count limits
 		self.odLimits = [[0,3], [0,3]]
+		self.subLimits = [[-1000, 1000], [500, 2000]]
 		self.countLimits = [[500,2000], [500,2000]]
+
+		# Initialize these to the default value
+		self.gFKSeriesLength = KRBCAM_FK_SERIES_LENGTH
+		self.gODSeriesLength = KRBCAM_OD_SERIES_LENGTH_FK
 
 		# Set default values
 		self.setDefaultValues()
@@ -512,6 +558,26 @@ class ImageWindow(QtGui.QWidget):
 		self.kSelectButton.setChecked(True)
 		self.minEdit.setText(str(self.odLimits[0][0]))
 		self.maxEdit.setText(str(self.odLimits[0][1]))
+
+	def controlFrameSettings(self, mode):
+		if mode == KRBCAM_ACQ_MODE_FK:
+			self.kSelectButton.setDisabled(False)
+			self.rbSelectButton.setDisabled(False)
+
+			self.frameSelect.clear()
+			self.frameSelect.addItem("OD")
+			self.frameSelect.addItem("Shadow")
+			self.frameSelect.addItem("Light")
+			self.frameSelect.addItem("Dark")
+		elif mode == KRBCAM_ACQ_MODE_SINGLE:
+			self.kSelectButton.setDisabled(True)
+			self.rbSelectButton.setDisabled(True)
+
+			self.frameSelect.clear()
+			self.frameSelect.addItem("Subtracted")
+			self.frameSelect.addItem("Fluorescence")
+			self.frameSelect.addItem("Dark")
+
 
 	# Populate GUI
 	# self.displayData is a listener for any state change of the buttons
@@ -565,9 +631,15 @@ class ImageWindow(QtGui.QWidget):
 
 			# Get the correct colorbar limits
 			if od == 0:
-				lims = self.odLimits[fk]
+				if self.mode == KRBCAM_ACQ_MODE_FK:
+					lims = self.odLimits[fk]
+				elif self.mode == KRBCAM_ACQ_MODE_SINGLE:
+					lims = self.subLimits[0]
 			else:
-				lims = self.countLimits[fk]
+				if self.mode == KRBCAM_ACQ_MODE_FK:
+					lims = self.countLimits[fk]
+				elif self.mode == KRBCAM_ACQ_MODE_SINGLE:
+					lims = self.subLimits[1]
 
 			# Update the text boxes
 			self.minEdit.setText(str(lims[0]))
@@ -579,9 +651,10 @@ class ImageWindow(QtGui.QWidget):
 		# AttributeError will occur if no data collected, since
 		# then self.data is undefined
 		except Exception as e:
-			print e
+			pass
 
-	def setData(self, data):
+	def setData(self, data, flag):
+		self.mode = flag
 		self.data = self.processData(data)
 
 	# Validate the entered values in the min and max boxes
@@ -594,9 +667,15 @@ class ImageWindow(QtGui.QWidget):
 			# Update our od limits or count limits
 			(fk, od) = self.getConfig()
 			if od == 0:
-				self.odLimits[fk] = [min(min_entry, max_entry), max(min_entry, max_entry)]
+				if self.mode == KRBCAM_ACQ_MODE_FK:
+					self.odLimits[fk] = [min(min_entry, max_entry), max(min_entry, max_entry)]
+				elif self.mode == KRBCAM_ACQ_MODE_SINGLE:
+					self.subLimits[0] = [min(min_entry, max_entry), max(min_entry, max_entry)]
 			else:
-				self.countLimits[fk] = [min(min_entry, max_entry), max(min_entry, max_entry)]
+				if self.mode == KRBCAM_ACQ_MODE_FK:
+					self.countLimits[fk] = [min(min_entry, max_entry), max(min_entry, max_entry)]
+				elif self.mode == KRBCAM_ACQ_MODE_SINGLE:
+					self.subLimits[1] = [min(min_entry, max_entry), max(min_entry, max_entry)]
 
 			# Update the image shown on the screen
 			self.displayData()
@@ -624,11 +703,11 @@ class ImageWindow(QtGui.QWidget):
 		out = []
 
 		# Separate kinetic series, od series
-		for i in range(KRBCAM_FK_SERIES_LENGTH):
+		for i in range(self.gFKSeriesLength):
 			arr = data[i]
 			od_series = []
 			
-			num_images = KRBCAM_OD_SERIES_LENGTH
+			num_images = self.gODSeriesLength
 			(length, x) = np.shape(arr)
 			length = length / num_images
 
@@ -636,19 +715,26 @@ class ImageWindow(QtGui.QWidget):
 			for j in range(num_images):
 				od_series.append(arr[j*length:(j+1)*length])
 
-			# Calculate OD of the image assuming no saturation
-			shadow = od_series[0] - od_series[2]
-			background = od_series[1] - od_series[2]
-			with np.errstate(divide='ignore', invalid='ignore'):
-				od = np.log(background / shadow)
+			# If Kinetics mode, doing absorption imaging
+			if self.mode == KRBCAM_ACQ_MODE_FK:
+				# Calculate OD of the image assuming no saturation
+				shadow = od_series[0] - od_series[2]
+				background = od_series[1] - od_series[2]
+				with np.errstate(divide='ignore', invalid='ignore'):
+					od = np.log(background / shadow)
 
-				# Clip off infs and NaNs
-				od[od == np.inf] = KRBCAM_OD_MAX
-				od[od == -np.inf] = 0
-				od = np.where(np.isnan(od), 0, od)
+					# Clip off infs and NaNs
+					od[od == np.inf] = KRBCAM_OD_MAX
+					od[od == -np.inf] = 0
+					od = np.where(np.isnan(od), 0, od)
 
-			od_series = [od] + od_series
-			out.append(od_series)
+				od_series = [od] + od_series
+				out.append(od_series)
+			# If Image mode, doing fluorescence imaging?
+			elif self.mode == KRBCAM_ACQ_MODE_SINGLE:
+				sub = od_series[0] - od_series[1]
+				od_series = [sub] + od_series
+				out.append(od_series)
 
 		# Return re-arranged data
 		# Data is a 2-index array

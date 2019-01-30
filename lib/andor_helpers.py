@@ -2,7 +2,11 @@
 ## Default settings ##
 ######################
 
-KRBCAM_ACQ_MODE = 4 				# 4 is Fast Kinetics
+KRBCAM_ACQ_MODE_FK = 4					# 4 is Fast kinetics
+KRBCAM_ACQ_MODE_SINGLE = 1				# 1 is Single
+
+KRBCAM_ACQ_MODE = KRBCAM_ACQ_MODE_FK	# 4 is Fast Kinetics
+
 KRBCAM_READ_MODE = 4 				# 4 is Image
 
 KRBCAM_TRIGGER_MODE = 1				# 0 is Internal, 1 is External
@@ -12,7 +16,8 @@ KRBCAM_EXPOSED_ROWS = 512			# Exposed rows on CCD for FK
 KRBCAM_USE_INTERNAL_SHUTTER = 1		# 1 for no, 0 for yes
 
 KRBCAM_FK_SERIES_LENGTH = 2
-KRBCAM_OD_SERIES_LENGTH = 3
+KRBCAM_OD_SERIES_LENGTH_FK = 3			# 3 for absorption imaging
+KRBCAM_OD_SERIES_LENGTH_IMAGE = 2	# 2 for fluorescence
 KRBCAM_FK_BINNING_MODE = 4
 KRBCAM_N_ACC = 1
 KRBCAM_BIN_SIZE = 2
@@ -25,10 +30,11 @@ KRBCAM_SAFE_TEMP = -20				# Celsius
 
 KRBCAM_FAN_MODE = 2					# 0: full, 1: low, 2: off
 
-KRBCAM_ACQ_TIMER = 0.1				# 0.5 s for acquisition loop
+KRBCAM_ACQ_TIMER = 0.5				# 0.5 s for acquisition loop
 KRBCAM_LOOP_ACQ = True				# Loop acquisition?
 
-KRBCAM_FILENAME_BASE = 'iXon_img'
+KRBCAM_FILENAME_BASE_IMAGE = 'iXon_img'
+KRBCAM_FILENAME_BASE_FK = 'iXon_fk'
 
 KRBCAM_VERBOSE_FLAG = True
 

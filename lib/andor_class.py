@@ -124,29 +124,9 @@ class KRbiXon(atmcd.atmcd):
 			successMsg = "Fan turned off.\n"
 		msg += self.handleErrors(ret, "SetFanMode error: ", successMsg)
 
-		if KRBCAM_ACQ_MODE == 4: # Fast kinetics
-			(ret, numvss) = self.GetNumberFKVShiftSpeeds()
-			successMsg = "Number of fast kinetics VS speeds is " + str(numvss) + ".\n"
-			msg += self.handleErrors(ret, "GetNumberFKVShiftSpeeds error: ", successMsg)
-			self.camInfo['vss'] = []
-
-			for i in range(numvss):
-				(ret, speed) = self.GetFKVShiftSpeedF(i)
-				successMsg = "Speed " + str(i) + " is {:.3} microseconds.\n".format(speed)
-				msg += self.handleErrors(ret, "GetFKVShiftSpeedF error: ", successMsg)
-				self.camInfo['vss'].append(speed)
-		else:
-			(ret, numvss) = self.GetNumberVSSpeeds()
-			successMsg = "Number of vertical shift speeds is " + str(numvss) + ".\n"
-			msg += self.handleErrors(ret, "GetNumberVSSpeeds error: ", successMsg)
-			self.camInfo['vss'] = []
-
-			for i in range(numvss):
-				(ret, speed) = self.GetVSSpeed(i)
-				successMsg = "Speed " + str(i) + " is {:.3} microseconds.\n".format(speed)
-				msg += self.handleErrors(ret, "GetVSSpeed error: ", successMsg)
-				self.camInfo['vss'].append(speed)
-
+		# Get vertical shift speeds
+		(err, err_msg) = self.updateVerticalShiftSpeeds(KRBCAM_ACQ_MODE)
+		msg += err_msg
 
 		(ret, nad) = self.GetNumberADChannels()
 		successMsg = "Number of A/D channels is " + str(nad) + ".\n"
@@ -202,15 +182,40 @@ class KRbiXon(atmcd.atmcd):
 		# If no error, then errorFlag = 0, and msg contains the success messages
 		return (self.errorFlag, msg)
 
+	# Get vertical shift speeds
+	def updateVerticalShiftSpeeds(self, acq_mode):
+		msg = ""
+
+		if acq_mode == 4: # Fast kinetics
+			(ret, numvss) = self.GetNumberFKVShiftSpeeds()
+			successMsg = "Number of fast kinetics VS speeds is " + str(numvss) + ".\n"
+			msg += self.handleErrors(ret, "GetNumberFKVShiftSpeeds error: ", successMsg)
+			self.camInfo['vss'] = []
+
+			for i in range(numvss):
+				(ret, speed) = self.GetFKVShiftSpeedF(i)
+				successMsg = "Speed " + str(i) + " is {:.3} microseconds.\n".format(speed)
+				msg += self.handleErrors(ret, "GetFKVShiftSpeedF error: ", successMsg)
+				self.camInfo['vss'].append(speed)
+		else:
+			(ret, numvss) = self.GetNumberVSSpeeds()
+			successMsg = "Number of vertical shift speeds is " + str(numvss) + ".\n"
+			msg += self.handleErrors(ret, "GetNumberVSSpeeds error: ", successMsg)
+			self.camInfo['vss'] = []
+
+			for i in range(numvss):
+				(ret, speed) = self.GetVSSpeed(i)
+				successMsg = "Speed " + str(i) + " is {:.3} microseconds.\n".format(speed)
+				msg += self.handleErrors(ret, "GetVSSpeed error: ", successMsg)
+				self.camInfo['vss'].append(speed)
+		return (self.errorFlag, msg)
+
+
 
 	# Setup acquisition modes, get allowed EM gain range
 	def armiXon(self):
 		self.errorFlag = 0
 		msg = ""
-
-		ret = self.SetAcquisitionMode(KRBCAM_ACQ_MODE)
-		successMsg = "Acquisition mode set to " + acq_modes[str(KRBCAM_ACQ_MODE)] + ".\n"
-		msg += self.handleErrors(ret, "SetAcquisitionMode error: ", successMsg)
 
 		ret = self.SetReadMode(KRBCAM_READ_MODE)
 		successMsg = "Read mode set to " + read_modes[str(KRBCAM_READ_MODE)] + ".\n"
@@ -301,17 +306,11 @@ class KRbiXon(atmcd.atmcd):
 		errorFlag = 1
 		return msg
 
-# More specialized class for setting up Fast Kinetics acquisitions
-class KRbFastKinetics(KRbiXon):
-	def __init__(self):
-		super(KRbFastKinetics, self).__init__()
-
-	# Set EM gain, exposure times, and readout times
-	# Get acquisition timings
+	# Set EM gain, AD channel, shift speeds, pre amp gain
 	def setupAcquisition(self, config):
 		self.errorFlag = 0
 		msg = ""
-	
+
 		# If EM, need to use EMCCD gain register and set EMCCD gain
 		if config['emEnable']:
 			ret = self.SetOutputAmplifier(0)
@@ -349,6 +348,19 @@ class KRbFastKinetics(KRbiXon):
 		successMsg = "Pre-Amp Gain set to {}.\n".format(self.camInfo['preAmpGain'][pa])
 		msg += self.handleErrors(ret, "SetPreAmpGain error: ", successMsg)
 
+		return (self.errorFlag, msg)
+
+
+	# Set exposure times and readout times
+	# Get acquisition timings
+	def setupFastKinetics(self, config):
+		self.errorFlag = 0
+		msg = ""
+
+		ret = self.SetAcquisitionMode(KRBCAM_ACQ_MODE_FK)
+		successMsg = "Acquisition mode set to " + acq_modes[str(KRBCAM_ACQ_MODE_FK)] + ".\n"
+		msg += self.handleErrors(ret, "SetAcquisitionMode error: ", successMsg)
+		
 		# Set the fast kinetics vertical shift speed
 		(ret) = self.SetFKVShiftSpeed(config['vss'])
 		successMsg = "FKVShiftSpeed set to {}.\n".format(config['vss'])
@@ -381,81 +393,43 @@ class KRbFastKinetics(KRbiXon):
 		return (self.errorFlag, msg)
 
 
-# # More specialized class for setting up Image acquisitions
-# class KRbImage(KRbiXon):
-# 	def __init__(self):
-# 		super(KRbImage, self).__init__()
+	def setupImage(self, config):
+		self.errorFlag = 0
+		msg = ""
 
-# 	# Set EM gain, exposure times, and readout times
-# 	# Get acquisition timings
-# 	def setupAcquisition(self, config):
-# 		self.errorFlag = 0
-# 		msg = ""
+		ret = self.SetAcquisitionMode(KRBCAM_ACQ_MODE_SINGLE)
+		successMsg = "Acquisition mode set to " + acq_modes[str(KRBCAM_ACQ_MODE_SINGLE)] + ".\n"
+		msg += self.handleErrors(ret, "SetAcquisitionMode error: ", successMsg)
+
+		# Set the vertical shift speed
+		(ret) = self.SetVSSpeed(config['vss'])
+		successMsg = "Vertical shift speed set to {}.\n".format(config['vss'])
+		msg += self.handleErrors(ret, "SetVSSpeed error: ", successMsg)
 	
-# 		# If EM, need to use EMCCD gain register and set EMCCD gain
-# 		if config['emEnable']:
-# 			ret = self.SetOutputAmplifier(0)
-# 			successMsg = "Output amplifier set to EMCCD gain register.\n"
-# 			msg += self.handleErrors(ret, "SetOutputAmplifier error: ", successMsg)
+		# Set the exposure time
+		exposure = config['expTime'] * 1e-3
+		if config['binning']:
+			binning = KRBCAM_BIN_SIZE
+		else:
+			binning = 1
+		ret = self.SetExposureTime(exposure)
+		msg += self.handleErrors(ret, "SetExposureTime error: ", "Exposure time set.\n")
 
+		hstart = config['xOffset'] + 1
+		hend = config['xOffset'] + config['dx']
+		vstart = config['yOffset'] + 1
+		vend = config['yOffset'] + config['dy']
+		ret = self.SetImage(binning, binning, hstart, hend, vstart, vend)
+		msg += self.handleErrors(ret, "SetImage error: ", "Image bounds set.\n")
 
-# 			ret = self.SetEMCCDGain(config['emGain'])
-# 			successMsg = "EM Gain set to " + str(config['emGain']) + ".\n"
-# 			msg += self.handleErrors(ret, "SetEMCCDGain error: ", successMsg)
-# 		# Otherwise, use the Conventional amplifier
-# 		else:
-# 			ret = self.SetOutputAmplifier(1)
-# 			successMsg = "Output amplifier set to conventional.\n"
-# 			msg += self.handleErrors(ret, "SetOutputAmplifier error: ", successMsg)
+		# Get the Acquisition timings
+		(ret, realExp, realAcc, realKin) = self.GetAcquisitionTimings()
+		successMsg = "Real (exp., acc., kin.) times are ({:.3}, {:.3}, {:.3}) ms.\n".format(realExp * 1.0e3, realAcc * 1.0e3, realKin * 1.0e3)
+		msg += self.handleErrors(ret, "GetAcquisitionTimings error: ", successMsg)
 
-# 		# Set the AD channel
-# 		ret = self.SetADChannel(config['adChannel'])
-# 		successMsg = "AD Channel {} selected.\n".format(config['adChannel'])
-# 		msg += self.handleErrors(ret, "SetADChannel error: ", successMsg)
+		# Get the readout time
+		(ret, readout) = self.GetReadOutTime()
+		successMsg = "Readout time is {:.3} ms.\n".format(readout * 1e3)
+		msg += self.handleErrors(ret, "GetReadoutTime error: ", successMsg)
 
-# 		# Set the horizontal shift speed
-
-# 		typ = 1
-# 		if config['emEnable']:
-# 			typ = 0
-# 		hss = config['hss']
-# 		ret = self.SetHSSpeed(typ, config['hss'])
-# 		successMsg = "HShiftSpeed set to {}.\n".format(self.camInfo['hss'][0][typ][hss])
-# 		msg += self.handleErrors(ret, "SetHSSpeed error: ", successMsg)
-
-# 		# Set the pre amp gain
-# 		pa = config['preAmpGain']
-# 		ret = self.SetPreAmpGain(pa)
-# 		successMsg = "Pre-Amp Gain set to {}.\n".format(self.camInfo['preAmpGain'][pa])
-# 		msg += self.handleErrors(ret, "SetPreAmpGain error: ", successMsg)
-
-# 		# Set the fast kinetics vertical shift speed
-# 		(ret) = self.SetFKVShiftSpeed(config['vss'])
-# 		successMsg = "FKVShiftSpeed set to {}.\n".format(config['vss'])
-# 		msg += self.handleErrors(ret, "SetFKVShiftSpeed error: ", successMsg)
-
-# 		# Set the exposure time
-# 		exposure = config['expTime'] * 1e-3
-# 		if config['binning']:
-# 			binning = KRBCAM_BIN_SIZE
-# 		else:
-# 			binning = 1
-# 		ret = self.SetFastKineticsEx(config['dy'], KRBCAM_FK_SERIES_LENGTH, exposure, 4, binning, binning, config['yOffset'])
-# 		msg += self.handleErrors(ret, "SetFastKineticsEx error: ", "Fast Kinetics set.\n")
-
-# 		# Get the FK exposure time
-# 		(ret, realExp) = self.GetFKExposureTime()
-# 		successMsg = "Real FK exposure time is {:.3} ms.\n".format(realExp * 1e3)
-# 		msg += self.handleErrors(ret, "GetFKExposureTime error: ", successMsg)
-
-# 		# Get the Acquisition timings
-# 		(ret, realExp, realAcc, realKin) = self.GetAcquisitionTimings()
-# 		successMsg = "Real (exp., acc., kin.) times are ({:.3}, {:.3}, {:.3}) ms.\n".format(realExp * 1.0e3, realAcc * 1.0e3, realKin * 1.0e3)
-# 		msg += self.handleErrors(ret, "GetAcquisitionTimings error: ", successMsg)
-
-# 		# Get the readout time
-# 		(ret, readout) = self.GetReadOutTime()
-# 		successMsg = "Readout time is {:.3} ms.\n".format(readout * 1e3)
-# 		msg += self.handleErrors(ret, "GetReadoutTime error: ", successMsg)
-
-# 		return (self.errorFlag, msg)
+		return (self.errorFlag, msg)

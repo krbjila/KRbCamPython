@@ -15,7 +15,7 @@ sys.path.append("./lib/sdk2/")
 # Our helper files
 from gui_helpers import *
 from andor_helpers import *
-from andor_class import KRbFastKinetics
+from andor_class import KRbiXon
 
 import qtreactor.pyqt4reactor
 qtreactor.pyqt4reactor.install()
@@ -52,7 +52,16 @@ class MainWindow(QtGui.QWidget):
 	# Counter for number of shots in OD series (typically 3)
 	gCounterODSeries = 0
 
+	# Acquire mode
+	gAcqMode = KRBCAM_ACQ_MODE
+	if KRBCAM_ACQ_MODE == KRBCAM_ACQ_MODE_FK:
+		gODSeriesLength = KRBCAM_OD_SERIES_LENGTH_FK
+	elif KRBCAM_ACQ_MODE == KRBCAM_ACQ_MODE_SINGLE:
+		gODSeriesLength = KRBCAM_OD_SERIES_LENGTH_IMAGE
+
+	gFKSeriesLength = KRBCAM_FK_SERIES_LENGTH
 	gSetTemp = KRBCAM_DEFAULT_TEMP
+	gFileNameBase = KRBCAM_FILENAME_BASE_FK
 
 	def __init__(self, reactor):
 		super(MainWindow, self).__init__(None)
@@ -68,7 +77,7 @@ class MainWindow(QtGui.QWidget):
 		self.acquireAbortStatus.acquireControl.setDisabled(True)
 
 		# Initialize the object
-		self.AndorCamera = KRbFastKinetics()
+		self.AndorCamera = KRbiXon()
 
 		# Initialize the device
 		(errf, errm) = self.AndorCamera.initializeSDK()
@@ -102,6 +111,42 @@ class MainWindow(QtGui.QWidget):
 		self.coolerControl.coolerOffControl.clicked.connect(self.coolerOff)
 		# Update the set temperature
 		self.coolerControl.ccdSetTempEdit.returnPressed.connect(self.updateSetTempFromEdit)
+		# Acquisition mode
+		self.configForm.acquireEdit.currentIndexChanged.connect(self.controlAcquisitionMode)
+		# Freeze acquisitionmode
+		self.acquireAbortStatus.acquireControl.clicked.connect(lambda: self.configForm.freezeForm(True))
+		self.acquireAbortStatus.abortControl.clicked.connect(lambda: self.configForm.freezeForm(False))
+
+	# Control the acquisition mode
+	def controlAcquisitionMode(self):
+		ind = self.configForm.acquireEdit.currentIndex()
+
+		if ind == 0: # "Image"
+			self.gODSeriesLength = KRBCAM_OD_SERIES_LENGTH_IMAGE
+			self.gFKSeriesLength = 1 # No fast kinetics series, just 1 image
+			self.gAcqMode = KRBCAM_ACQ_MODE_SINGLE # Single scan
+			self.gFileNameBase = KRBCAM_FILENAME_BASE_IMAGE
+		elif ind == 1: # "Fast kinetics"
+			self.gODSeriesLength = KRBCAM_OD_SERIES_LENGTH_FK
+			self.gFKSeriesLength = KRBCAM_FK_SERIES_LENGTH # Fast kinetics series
+			self.gAcqMode = KRBCAM_ACQ_MODE_FK # Fast Kinetics
+			self.gFileNameBase = KRBCAM_FILENAME_BASE_FK
+
+		self.imageWindow.gFKSeriesLength = self.gFKSeriesLength
+		self.imageWindow.gODSeriesLength = self.gODSeriesLength
+		self.configForm.mode = self.gAcqMode # Controls filename base for saving
+
+		# Update the gCamInfo struct
+		# VSS may change going from FK to Image modes
+		self.AndorCamera.updateVerticalShiftSpeeds(self.gAcqMode)
+		self.gCamInfo = self.AndorCamera.camInfo
+
+		self.configForm.vssControl.clear()
+		# Populate vertical shift speeds
+		for val in self.gCamInfo['vss']:
+			self.configForm.vssControl.addItem("{:.2} usec".format(val))
+		self.configForm.vssControl.setCurrentIndex(default_config['vss'])
+
 
 	# Turn on cooler
 	def coolerOn(self):
@@ -273,14 +318,33 @@ class MainWindow(QtGui.QWidget):
 		self.gConfig = self.validateFormInput(self.configForm.getFormData())
 		self.configForm.setFormData(self.gConfig)
 
-		# setupAcquisition sets the Fast Kinetics settings and the EM settings
+		# setupAcquisition sets the EM settings, ad channel, shift speeds, pre amp settings
 		(errf, errm) = self.AndorCamera.setupAcquisition(self.gConfig)
 
 		if errf:
-			self.throwErrorMessage("KRbFastKinetics.setupAcquisition error!", errm)
+			self.throwErrorMessage("KRbiXon.setupAcquisition error!", errm)
 			return -2
 		elif flagVerbose:
 			self.appendToStatus(errm)
+
+		if self.gAcqMode == KRBCAM_ACQ_MODE_FK:
+			# setupAcquisition sets the EM settings, ad channel, shift speeds, pre amp settings
+			(errf, errm) = self.AndorCamera.setupFastKinetics(self.gConfig)
+
+			if errf:
+				self.throwErrorMessage("KRbiXon.setupFastKinetics error!", errm)
+				return -2
+			elif flagVerbose:
+				self.appendToStatus(errm)
+		elif self.gAcqMode == KRBCAM_ACQ_MODE_SINGLE:
+			# setupAcquisition sets the EM settings, ad channel, shift speeds, pre amp settings
+			(errf, errm) = self.AndorCamera.setupImage(self.gConfig)
+
+			if errf:
+				self.throwErrorMessage("KRbiXon.setupImage error!", errm)
+				return -2
+			elif flagVerbose:
+				self.appendToStatus(errm)
 
 		# Enable abort button, disable acquire button
 		self.acquireAbortStatus.acquire()
@@ -332,7 +396,7 @@ class MainWindow(QtGui.QWidget):
 				self.gCounterODSeries += 1
 
 				# Update status log
-				self.appendToStatus("Acquired {} of {} in series.\n".format(self.gCounterODSeries, KRBCAM_OD_SERIES_LENGTH))
+				self.appendToStatus("Acquired {} of {} in series.\n".format(self.gCounterODSeries, self.gODSeriesLength))
 				
 				# Get the data off of the camera
 				newData = self.getData()
@@ -346,22 +410,27 @@ class MainWindow(QtGui.QWidget):
 						data.append(np.array(newData[i]))
 
 				# If need to take more in the OD series, acquire again
-				if self.gCounterODSeries < KRBCAM_OD_SERIES_LENGTH:
+				if self.gCounterODSeries < self.gODSeriesLength:
 					self.startAcquisition(data)
 				# Otherwise we are done acquiring!
 				else:
  
  					# Save data
-					for j in range(KRBCAM_FK_SERIES_LENGTH):
-						self.saveData(data[j], j)
-					self.appendToStatus("Data saved.\n")
+ 					if self.gAcqMode == KRBCAM_ACQ_MODE_FK:
+						for j in range(self.gFKSeriesLength):
+							self.saveData(data[j], j)
+						self.appendToStatus("Data saved.\n")
+					elif self.gAcqMode == KRBCAM_ACQ_MODE_SINGLE:
+						self.saveData(data[0], 0, True)
+						self.appendToStatus("Data saved.\n")
 
 					####################################################################
 					######## Lines below are commented for camera noise testing ########
 					####################################################################
 
 					# Display the data
-					self.imageWindow.setData(data)
+					self.imageWindow.setData(data, self.gAcqMode)
+					self.imageWindow.controlFrameSettings(self.gAcqMode) # Control radio buttons and combo boxes
 					self.imageWindow.displayData()
 
 					# Update file number
@@ -389,7 +458,7 @@ class MainWindow(QtGui.QWidget):
 		if (self.gConfig['binning']):
 			dy /= KRBCAM_BIN_SIZE
 			dx /= KRBCAM_BIN_SIZE
-		dataLength = KRBCAM_FK_SERIES_LENGTH * dy * dx
+		dataLength = self.gFKSeriesLength * dy * dx
 
 		# Now ask the camera for data
 		# getData first queries the camera for available images
@@ -408,7 +477,7 @@ class MainWindow(QtGui.QWidget):
 
 			# Data is returned as one long array
 			# Need to split it up to get the individual images
-			num_images = KRBCAM_FK_SERIES_LENGTH
+			num_images = self.gFKSeriesLength
 			image_length = len(data)/num_images
 			
 			# For each Fast Kinetics frame:
@@ -421,8 +490,13 @@ class MainWindow(QtGui.QWidget):
 			return out[::-1]
 
 	# Save data array
-	def saveData(self, data_array, kinIndex):
-		path = self.gConfig['savePath'] + KRBCAM_FILENAME_BASE + str(self.gConfig['fileNumber']) + chr(ord('a') + kinIndex) + ".csv"
+	def saveData(self, data_array, kinIndex, suppress=False):
+		if suppress:
+			kin = ""
+		else:
+			kin = chr(ord('a') + kinIndex)
+
+		path = self.gConfig['savePath'] + self.gFileNameBase + str(self.gConfig['fileNumber']) + kin + ".csv"
 		# Open the file and write the data,
 		# comma-delimited
 		dy, dx = np.shape(data_array)
@@ -485,7 +559,7 @@ class MainWindow(QtGui.QWidget):
 		# If in Fast kinetics mode,
 		# the number of rows should be either the number of exposed rows
 		# or at most the size of the device / number of shots in FK series
-		if KRBCAM_ACQ_MODE == 4:
+		if self.gAcqMode == KRBCAM_ACQ_MODE_FK:
 			if KRBCAM_EXPOSED_ROWS < self.gCamInfo['detDim'][1] / KRBCAM_FK_SERIES_LENGTH:
 				y_limit = KRBCAM_EXPOSED_ROWS
 			else:
@@ -522,7 +596,7 @@ class MainWindow(QtGui.QWidget):
 
 		# If in Fast Kinetics mode, the width of the image should be
 		# the entire width of the CCD arrray
-		if KRBCAM_ACQ_MODE == 4:
+		if self.gAcqMode == 4:
 			form['dx'] = self.gCamInfo['detDim'][0]
 
 		return form
