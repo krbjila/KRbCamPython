@@ -13,7 +13,7 @@ import numpy as np
 from andor_helpers import *
 
 layout_params = {
-	'main': [1000, 700],
+	'main': [1000, 800],
 	'image': [700,500],
 	'figure': [6, 6]
 }
@@ -56,6 +56,19 @@ class ConfigForm(QtGui.QWidget):
 		# the last file in the directory
 		self.checkDir()
 
+		# Try to initialize the combo boxes to the right value
+		try:
+			self.adChannelControl.setCurrentIndex(default_config['adChannel'])
+			self.controlHSSOptions()
+
+			self.hssControl.setCurrentIndex(default_config['hss'])
+			self.preAmpGainControl.setCurrentIndex(default_config['preAmpGain'])
+
+			self.vssControl.setCurrentIndex(default_config['vss'])
+		# Hit exception if communication with camera isn't setup yet
+		except Exception as e:
+			pass
+
 	# Check save directory and file number
 	# using path defined in the save path field
 	def checkDir(self):
@@ -87,6 +100,70 @@ class ConfigForm(QtGui.QWidget):
 		# Update the file number field of the config form
 		self.fileNumberEdit.setText(str(fileNumber))
 
+	# Setup Combo Boxes
+	# The items are dependent on the camera capabilities
+	def setupComboBoxes(self, config):
+		# Get the camera info
+		self.hss = config['hss']
+		self.hssPA = config['hssPreAmp']
+		self.pa = config['preAmpGain']
+		self.nADC = config['adChannels']
+
+		# Populate AD Channels
+		for i in range(self.nADC):
+			self.adChannelControl.addItem(str(i))
+
+		# Populate horizontal shift speeds
+		self.controlHSSOptions()
+
+		# Populate vertical shift speeds
+		for val in config['vss']:
+			self.vssControl.addItem("{:.2} usec".format(val))
+
+	# Setup horizontal shift speed options
+	# The items are dependent on the camera capabilities
+	def controlHSSOptions(self):
+		# Clear combo box
+		self.hssControl.clear()
+
+		# Need to know whether we are in EM mode
+		if self.emEnableControl.isChecked():
+			typ = 0
+		else:
+			typ = 1
+
+		# Need AD channel
+		adc = int(self.adChannelControl.currentIndex())
+
+		# Populate the box
+		for val in self.hss[adc][typ]:
+			self.hssControl.addItem("{:.1f} MHz".format(val))
+
+		# Populate the pre amp options
+		self.controlPAOptions()
+
+	# Setup pre amplifier options
+	# The items are dependent on the camera capabilities
+	def controlPAOptions(self):
+		# Clear the combo box
+		self.preAmpGainControl.clear()
+
+		# Need to know whether we are in EM mode
+		if self.emEnableControl.isChecked():
+			typ = 0
+		else:
+			typ = 1
+
+		# Get current AD channel and current HSS
+		adc = int(self.adChannelControl.currentIndex())
+		hss = int(self.hssControl.currentIndex())
+
+		# Populate box, only counting pre amp controls that are available
+		# for this HSS
+		for i in range(len(self.pa)):
+			if self.hssPA[adc][typ][hss][i]:
+				self.preAmpGainControl.addItem(str(self.pa[i]))
+
 	# Returns the form data
 	# If any field has an invalid format, the default values are reset
 	def getFormData(self):
@@ -103,9 +180,13 @@ class ConfigForm(QtGui.QWidget):
 			form['emGain'] = int(self.emGainEdit.text())
 			form['fileNumber'] = int(self.fileNumberEdit.text())
 			form['savePath'] = str(self.savePathEdit.text())
+			form['vss'] = self.vssControl.currentIndex()
+			form['adChannel'] = self.adChannelControl.currentIndex()
+			form['hss'] = self.hssControl.currentIndex()
+			form['preAmpGain'] = self.preAmpGainControl.currentIndex()
 			return form
 		except:
-			self.throwErrorMessage("Invalid form data!", "Setting default values.")
+			self.throwErrorMessage("Invalid form data!", "Try again.")
 			self.setDefaultValues()
 			return self.getFormData()
 
@@ -166,6 +247,18 @@ class ConfigForm(QtGui.QWidget):
 		self.emEnableStatic = QtGui.QLabel("EM Enable?", self)
 		self.emEnableControl = QtGui.QCheckBox(self)
 		self.emEnableControl.stateChanged.connect(self.emGainToggle)
+		self.emEnableControl.stateChanged.connect(self.controlHSSOptions)
+
+		self.adChannelStatic = QtGui.QLabel("AD Channel", self)
+		self.adChannelControl = QtGui.QComboBox(self)
+		self.adChannelControl.currentIndexChanged.connect(self.controlHSSOptions)
+
+		self.hssStatic = QtGui.QLabel("HS Speed", self)
+		self.hssControl = QtGui.QComboBox(self)
+		self.hssControl.currentIndexChanged.connect(self.controlPAOptions)
+
+		self.preAmpGainStatic = QtGui.QLabel("Pre-Amp Gain", self)
+		self.preAmpGainControl = QtGui.QComboBox(self)
 
 		self.xOffsetStatic = QtGui.QLabel("X Offset (px)", self)
 		self.xOffsetEdit = QtGui.QLineEdit(self)
@@ -182,6 +275,9 @@ class ConfigForm(QtGui.QWidget):
 		self.binningStatic = QtGui.QLabel("Bin 2x2?", self)
 		self.binningControl = QtGui.QCheckBox(self)
 
+		self.vssStatic = QtGui.QLabel("FKVS Speed", self)
+		self.vssControl = QtGui.QComboBox(self)
+
 		self.savePathStatic = QtGui.QLabel("Save to:", self)
 		self.savePathEdit = QtGui.QLineEdit(self)
 
@@ -190,45 +286,75 @@ class ConfigForm(QtGui.QWidget):
 		
 		self.layout = QtGui.QGridLayout()
 
-		self.layout.addWidget(self.acquireStatic, 1, 0)
-		self.layout.addWidget(self.acquireEdit, 1, 1)
+		row = 1
+		self.layout.addWidget(self.acquireStatic, row, 0)
+		self.layout.addWidget(self.acquireEdit, row, 1)
+		row += 1
 
-		self.layout.addWidget(self.triggerStatic, 2, 0)
-		self.layout.addWidget(self.triggerEdit, 2, 1)
+		self.layout.addWidget(self.triggerStatic, row, 0)
+		self.layout.addWidget(self.triggerEdit, row, 1)
+		row += 1
 
-		self.layout.addWidget(self.exposureStatic, 3, 0)
-		self.layout.addWidget(self.exposureEdit, 3, 1)
+		self.layout.addWidget(self.exposureStatic, row, 0)
+		self.layout.addWidget(self.exposureEdit, row, 1)
+		row += 1
 
-		self.layout.addWidget(self.emEnableStatic, 4, 0)
-		self.layout.addWidget(self.emEnableControl, 4, 1)
+		self.layout.addWidget(self.emEnableStatic, row, 0)
+		self.layout.addWidget(self.emEnableControl, row, 1)
+		row += 1
 
-		self.layout.addWidget(self.emGainStatic, 5, 0)
-		self.layout.addWidget(self.emGainEdit, 5, 1)
+		self.layout.addWidget(self.emGainStatic, row, 0)
+		self.layout.addWidget(self.emGainEdit, row, 1)
+		row += 1
 
-		self.layout.addWidget(QtGui.QLabel(""), 6, 0)
+		self.layout.addWidget(self.adChannelStatic, row, 0)
+		self.layout.addWidget(self.adChannelControl, row, 1)
+		row += 1
 
-		self.layout.addWidget(self.xOffsetStatic, 7, 0)
-		self.layout.addWidget(self.xOffsetEdit, 7, 1)
+		self.layout.addWidget(self.hssStatic, row, 0)
+		self.layout.addWidget(self.hssControl, row, 1)
+		row += 1
 
-		self.layout.addWidget(self.yOffsetStatic, 8, 0)
-		self.layout.addWidget(self.yOffsetEdit, 8, 1)
+		self.layout.addWidget(self.preAmpGainStatic, row, 0)
+		self.layout.addWidget(self.preAmpGainControl, row, 1)
+		row += 1
 
-		self.layout.addWidget(self.dxStatic, 9, 0)
-		self.layout.addWidget(self.dxEdit, 9, 1)
+		self.layout.addWidget(QtGui.QLabel(""), row, 0)
+		row += 1
 
-		self.layout.addWidget(self.dyStatic, 10, 0)
-		self.layout.addWidget(self.dyEdit, 10, 1)
+		self.layout.addWidget(self.xOffsetStatic, row, 0)
+		self.layout.addWidget(self.xOffsetEdit, row, 1)
+		row += 1
 
-		self.layout.addWidget(self.binningStatic, 11, 0)
-		self.layout.addWidget(self.binningControl, 11, 1)
+		self.layout.addWidget(self.yOffsetStatic, row, 0)
+		self.layout.addWidget(self.yOffsetEdit, row, 1)
+		row += 1
 
-		self.layout.addWidget(QtGui.QLabel(""), 12, 0)
+		self.layout.addWidget(self.dxStatic, row, 0)
+		self.layout.addWidget(self.dxEdit, row, 1)
+		row += 1
 
-		self.layout.addWidget(self.savePathStatic, 13, 0)
-		self.layout.addWidget(self.savePathEdit, 13, 1)
+		self.layout.addWidget(self.dyStatic, row, 0)
+		self.layout.addWidget(self.dyEdit, row, 1)
+		row += 1
 
-		self.layout.addWidget(self.fileNumberStatic, 14, 0)
-		self.layout.addWidget(self.fileNumberEdit, 14, 1)
+		self.layout.addWidget(self.binningStatic, row, 0)
+		self.layout.addWidget(self.binningControl, row, 1)
+		row += 1
+
+		self.layout.addWidget(self.vssStatic, row, 0)
+		self.layout.addWidget(self.vssControl, row, 1)
+		row += 1
+
+		self.layout.addWidget(QtGui.QLabel(""), row, 0)
+		row += 1
+
+		self.layout.addWidget(self.savePathStatic, row, 0)
+		self.layout.addWidget(self.savePathEdit, row, 1)
+		row += 1
+
+		self.layout.addWidget(self.fileNumberStatic, row, 0)
+		self.layout.addWidget(self.fileNumberEdit, row, 1)
 
 		self.setLayout(self.layout)
 
@@ -303,8 +429,8 @@ class CoolerControl(QtGui.QWidget):
 	# Given the camInfo dict from the main GUI,
 	# display the allowed temp range for the camera
 	def setTempRange(self, info):
-		mintemp = info['temperatureRange'][0]
-		maxtemp = info['temperatureRange'][1]
+		mintemp = max(info['temperatureRange'][0], KRBCAM_MIN_TEMP)
+		maxtemp = min(info['temperatureRange'][1], KRBCAM_MAX_TEMP)
 
 		msg = "{} to {}".format(mintemp, maxtemp)
 		self.ccdTempRangeEdit.setText(msg)
@@ -374,10 +500,18 @@ class ImageWindow(QtGui.QWidget):
 		super(ImageWindow, self).__init__(Parent)
 		self.setFixedSize(layout_params['image'][0],layout_params['image'][1])
 		self.populate()
+
+		# Default od and count limits
+		self.odLimits = [[0,3], [0,3]]
+		self.countLimits = [[500,2000], [500,2000]]
+
+		# Set default values
 		self.setDefaultValues()
 
 	def setDefaultValues(self):
 		self.kSelectButton.setChecked(True)
+		self.minEdit.setText(str(self.odLimits[0][0]))
+		self.maxEdit.setText(str(self.odLimits[0][1]))
 
 	# Populate GUI
 	# self.displayData is a listener for any state change of the buttons
@@ -400,12 +534,24 @@ class ImageWindow(QtGui.QWidget):
 		self.frameSelect.addItem("Dark")
 		self.frameSelect.currentIndexChanged.connect(self.displayData)
 
+		self.minLabel = QtGui.QLabel("Min", self)
+		self.minEdit = QtGui.QLineEdit(self)
+		self.maxLabel = QtGui.QLabel("Max", self)
+		self.maxEdit = QtGui.QLineEdit(self)
+
+		self.maxEdit.returnPressed.connect(self.validateLimits)
+		self.minEdit.returnPressed.connect(self.validateLimits)
+
 		self.layout = QtGui.QGridLayout()
-		self.layout.addWidget(self.toolbar,0,0,1,4)
-		self.layout.addWidget(self.canvas,1,0,4,4)
+		self.layout.addWidget(self.toolbar,0,0,1,6)
+		self.layout.addWidget(self.canvas,1,0,4,6)
 		self.layout.addWidget(self.kSelectButton,5,0)
 		self.layout.addWidget(self.rbSelectButton,5,1)
 		self.layout.addWidget(self.frameSelect,5,2,1,2)
+		self.layout.addWidget(self.minLabel,6,0)
+		self.layout.addWidget(self.minEdit,6,1)
+		self.layout.addWidget(self.maxLabel,6,2)
+		self.layout.addWidget(self.maxEdit,6,3)
 
 		self.setLayout(self.layout)
 
@@ -416,14 +562,51 @@ class ImageWindow(QtGui.QWidget):
 
 		# Then try to plot the image
 		try:
-			self.plot(self.data[fk][od])
+
+			# Get the correct colorbar limits
+			if od == 0:
+				lims = self.odLimits[fk]
+			else:
+				lims = self.countLimits[fk]
+
+			# Update the text boxes
+			self.minEdit.setText(str(lims[0]))
+			self.maxEdit.setText(str(lims[1]))
+
+			# Plot the image
+			self.plot(self.data[fk][od], lims[0], lims[1])
+			
 		# AttributeError will occur if no data collected, since
 		# then self.data is undefined
-		except AttributeError:
-			pass
+		except Exception as e:
+			print e
 
 	def setData(self, data):
 		self.data = self.processData(data)
+
+	# Validate the entered values in the min and max boxes
+	def validateLimits(self):
+		# Try to cast to int
+		try:
+			max_entry = int(float(self.maxEdit.text()))
+			min_entry = int(float(self.minEdit.text()))
+
+			# Update our od limits or count limits
+			(fk, od) = self.getConfig()
+			if od == 0:
+				self.odLimits[fk] = [min(min_entry, max_entry), max(min_entry, max_entry)]
+			else:
+				self.countLimits[fk] = [min(min_entry, max_entry), max(min_entry, max_entry)]
+
+			# Update the image shown on the screen
+			self.displayData()
+		except:
+			msgBox = QtGui.QMessageBox()
+			msgBox.setText("Invalid entry for image display limits.")
+			msgBox.setInformativeText("Please check entry (must be integer).")
+			msgBox.setStandardButtons(QtGui.QMessageBox.Ok)
+			msgBox.exec_()
+
 		
 	# Determine which image to display
 	def getConfig(self):
@@ -458,7 +641,12 @@ class ImageWindow(QtGui.QWidget):
 			background = od_series[1] - od_series[2]
 			with np.errstate(divide='ignore', invalid='ignore'):
 				od = np.log(background / shadow)
-				od[od == np.inf] = 0
+
+				# Clip off infs and NaNs
+				od[od == np.inf] = KRBCAM_OD_MAX
+				od[od == -np.inf] = 0
+				od = np.where(np.isnan(od), 0, od)
+
 			od_series = [od] + od_series
 			out.append(od_series)
 
@@ -469,13 +657,13 @@ class ImageWindow(QtGui.QWidget):
 		return out
 
 	# Plot the data
-	def plot(self, data):
+	def plot(self, data, vmin, vmax):
 		# Clear plot
 		self.figure.clear()
 
 		# Plot the data
 		ax = self.figure.add_subplot(111)
-		im = ax.imshow(data)
+		im = ax.imshow(data, vmin=vmin, vmax=vmax)
 
 		# Add a horizontal colorbar
 		self.figure.colorbar(im, orientation='horizontal')

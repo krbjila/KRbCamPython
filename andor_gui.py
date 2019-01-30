@@ -40,6 +40,9 @@ class MainWindow(QtGui.QWidget):
 	# Camera parameters
 	gCamInfo = {}
 
+	# Verbose output?
+	gFlagVerbose = KRBCAM_VERBOSE_FLAG
+
 	# Only allow acquisition loop for external trigger!
 	if KRBCAM_TRIGGER_MODE == 0: # Internal
 		gFlagLoop = False
@@ -77,6 +80,11 @@ class MainWindow(QtGui.QWidget):
 		else:
 			self.appendToStatus(errm)
 			self.gCamInfo = self.AndorCamera.camInfo
+
+			# Set up vertical shift speed control, pre amp gain, adc channel
+			self.configForm.setupComboBoxes(self.gCamInfo)
+			self.configForm.setDefaultValues()
+
 			self.acquireAbortStatus.acquireControl.setDisabled(False)
 			self.coolerControl.setTempRange(self.gCamInfo)
 			self.connectSignals()
@@ -85,7 +93,7 @@ class MainWindow(QtGui.QWidget):
 	# Connect PyQt button signals
 	def connectSignals(self):
 		# Acquire
-		self.acquireAbortStatus.acquireControl.clicked.connect(self.setupAcquisition)
+		self.acquireAbortStatus.acquireControl.clicked.connect(lambda: self.setupAcquisition(self.gFlagVerbose))
 		# Abort
 		self.acquireAbortStatus.abortControl.clicked.connect(self.abortAcquisition)
 		# CoolerOn
@@ -342,19 +350,21 @@ class MainWindow(QtGui.QWidget):
 					self.startAcquisition(data)
 				# Otherwise we are done acquiring!
 				else:
-
-					########################## TO DO ###########################
-					######## Need to add looping functionality here ############
-					############################################################
  
  					# Save data
 					for j in range(KRBCAM_FK_SERIES_LENGTH):
 						self.saveData(data[j], j)
 					self.appendToStatus("Data saved.\n")
 
+					####################################################################
+					######## Lines below are commented for camera noise testing ########
+					####################################################################
+
 					# Display the data
 					self.imageWindow.setData(data)
 					self.imageWindow.displayData()
+
+					# Update file number
 					self.gConfig['fileNumber'] += 1
 					self.configForm.setFormData(self.gConfig)
 
@@ -404,10 +414,11 @@ class MainWindow(QtGui.QWidget):
 			# For each Fast Kinetics frame:
 			for i in range(num_images):
 				# Get the image and resize to the correct dimensions
-				image = np.resize(data[i*image_length : (i+1)*image_length-1], (dy, dx))
+				image = np.resize(data[i*image_length : (i+1)*image_length], (dy, dx))
 				out.append(image)
 
-			return out
+			# For some reason, images come out backwards
+			return out[::-1]
 
 	# Save data array
 	def saveData(self, data_array, kinIndex):

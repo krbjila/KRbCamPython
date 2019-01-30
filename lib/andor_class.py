@@ -19,7 +19,12 @@ class KRbiXon(atmcd.atmcd):
 		'internalShutter': 0, # Has internal shutter?
 		'shutterMinT': [0, 0], # {closing time, opening time}
 		'emGainRange': [0, 0], # {emLow, emHigh}
-		'temperatureRange': [20, 20] # {mintemp, maxtemp}
+		'temperatureRange': [20, 20], # {mintemp, maxtemp}
+		'vss': [], # Vertical shift speeds
+		'hss': [], # Horizontal shift speeds
+		'hssPreAmp': [], # Pre amp gain availability
+		'preAmpGain': [], # Pre amp gain values
+		'adChannels': 0 # Number of ADC channels
 	}
 	errorFlag = 0
 
@@ -40,7 +45,7 @@ class KRbiXon(atmcd.atmcd):
 
 		try:
 			# Check status
-			status = self.GetStatus()
+			(ret, status) = self.GetStatus()
 			if status == self.DRV_ACQUIRING:
 				# If acquiring, abort
 				ret = self.AbortAcquisition()
@@ -119,10 +124,142 @@ class KRbiXon(atmcd.atmcd):
 			successMsg = "Fan turned off.\n"
 		msg += self.handleErrors(ret, "SetFanMode error: ", successMsg)
 
+		if KRBCAM_ACQ_MODE == 4: # Fast kinetics
+			(ret, numvss) = self.GetNumberFKVShiftSpeeds()
+			successMsg = "Number of fast kinetics VS speeds is " + str(numvss) + ".\n"
+			msg += self.handleErrors(ret, "GetNumberFKVShiftSpeeds error: ", successMsg)
+			self.camInfo['vss'] = []
+
+			for i in range(numvss):
+				(ret, speed) = self.GetFKVShiftSpeedF(i)
+				successMsg = "Speed " + str(i) + " is {:.3} microseconds.\n".format(speed)
+				msg += self.handleErrors(ret, "GetFKVShiftSpeedF error: ", successMsg)
+				self.camInfo['vss'].append(speed)
+		else:
+			(ret, numvss) = self.GetNumberVSSpeeds()
+			successMsg = "Number of vertical shift speeds is " + str(numvss) + ".\n"
+			msg += self.handleErrors(ret, "GetNumberVSSpeeds error: ", successMsg)
+			self.camInfo['vss'] = []
+
+			for i in range(numvss):
+				(ret, speed) = self.GetVSSpeed(i)
+				successMsg = "Speed " + str(i) + " is {:.3} microseconds.\n".format(speed)
+				msg += self.handleErrors(ret, "GetVSSpeed error: ", successMsg)
+				self.camInfo['vss'].append(speed)
+
+
+		(ret, nad) = self.GetNumberADChannels()
+		successMsg = "Number of A/D channels is " + str(nad) + ".\n"
+		msg += self.handleErrors(ret, "GetNumberADChannels error: ", successMsg)
+		self.camInfo['adChannels'] = nad
+
+		(ret, npreamp) = self.GetNumberPreAmpGains()
+		successMsg = "Number of preamp gains is " + str(npreamp) + ".\n"
+		msg += self.handleErrors(ret, "GetNumberPreAmpGains error: ", successMsg)
+		for j in range(npreamp):
+			(ret, gain) = self.GetPreAmpGain(j)
+			successMsg = "Preamp gain " + str(j) + " is {:.3}.\n".format(gain)
+			msg += self.handleErrors(ret, "GetPreAmpGain error: ", successMsg)
+			self.camInfo['preAmpGain'].append(gain)
+
+		hss_top_amp = []
+		hss_top_val = []
+		for i in range(self.camInfo['adChannels']):
+			typ_amp = []
+			typ_val = []
+			for j in range(2):
+				(ret, numhss) = self.GetNumberHSSpeeds(i,j)
+				successMsg = "Number of HS speeds ({}, {}): {}.\n".format(i,j,numhss)
+				msg += self.handleErrors(ret, "GetNumberHSSpeeds error: ", successMsg)
+
+				hss_amp = []
+				hss_val = []
+				for k in range(numhss):
+					(ret, speed) = self.GetHSSpeed(i,j,k)
+					successMsg = "({},{},{}) speed: {:.1f} MHz.\n".format(i,j,k,speed)
+					msg += self.handleErrors(ret, "GetHSSpeed error: ", successMsg)
+
+					hss_val.append(speed)
+
+					preamp = []
+					for m in range(len(self.camInfo['preAmpGain'])):
+						(ret, available) = self.IsPreAmpGainAvailable(i,j,k,m)
+						successMsg = "({},{},{},{}): {}\n".format(i,j,k,m,available)
+						msg += self.handleErrors(ret, "IsPreAmpGainAvailble error: ", successMsg)
+						preamp.append(available)
+					hss_amp.append(preamp)
+
+				typ_amp.append(hss_amp)
+				typ_val.append(hss_val)
+			hss_top_amp.append(typ_amp)
+			hss_top_val.append(typ_val)
+		self.camInfo['hss'] = hss_top_val
+		self.camInfo['hssPreAmp'] = hss_top_amp
+
+
 		# Return (errorFlag, msg)
 		# If error, then errorFlag = 1, and msg will contain the error message
 		# If no error, then errorFlag = 0, and msg contains the success messages
 		return (self.errorFlag, msg)
+
+
+	# Setup acquisition modes, get allowed EM gain range
+	def armiXon(self):
+		self.errorFlag = 0
+		msg = ""
+
+		ret = self.SetAcquisitionMode(KRBCAM_ACQ_MODE)
+		successMsg = "Acquisition mode set to " + acq_modes[str(KRBCAM_ACQ_MODE)] + ".\n"
+		msg += self.handleErrors(ret, "SetAcquisitionMode error: ", successMsg)
+
+		ret = self.SetReadMode(KRBCAM_READ_MODE)
+		successMsg = "Read mode set to " + read_modes[str(KRBCAM_READ_MODE)] + ".\n"
+		msg += self.handleErrors(ret, "SetReadMode error: ", successMsg)
+
+		ret = self.SetShutter(1, KRBCAM_USE_INTERNAL_SHUTTER, self.camInfo['shutterMinT'][0], self.camInfo['shutterMinT'][1])
+		successMsg = "Shutter mode set to " + shutter_modes[str(KRBCAM_USE_INTERNAL_SHUTTER)] + ".\n"
+		msg += self.handleErrors(ret, "SetShutter error: ", successMsg)
+
+		ret = self.SetTriggerMode(KRBCAM_TRIGGER_MODE)
+		successMsg = "Trigger mode set to " + trigger_modes[str(KRBCAM_TRIGGER_MODE)] + ".\n"
+		msg += self.handleErrors(ret, "SetTriggerMode error: ", successMsg)
+
+		if KRBCAM_USE_INTERNAL_SHUTTER: # == 1 if using external shutter
+			ret = self.SetFastExtTrigger(1)
+			successMsg = "Trigger set to Fast External Trigger mode.\n"
+			msg += self.handleErrors(ret, "SetFastExtTrigger error: ", successMsg)
+
+
+		ret = self.SetEMGainMode(KRBCAM_EM_MODE)
+		successMsg = "EM mode set to " + em_modes[str(KRBCAM_EM_MODE)] + ".\n"
+		msg += self.handleErrors(ret, "SetEMGainMode error: ", successMsg)
+
+		(ret, range0, range1) = self.GetEMGainRange()
+		self.camInfo['emGainRange'][0] = range0
+		self.camInfo['emGainRange'][1] = range1
+
+		return (self.errorFlag, msg)
+
+
+	# Get data from camera
+	def getData(self, dataLength):
+		self.errorFlag = 0
+		msg = ""
+
+		# Query camera for the number of available images
+		# For our typical use, should be the number of images in the kinetic series
+		# e.g., for imaging K and Rb one shot each it should be 2
+		(ret, first, last) = self.GetNumberAvailableImages()
+		successMsg = "Available images are {} to {}.\n".format(first, last)
+		msg += self.handleErrors(ret, "GetNumberAvailableImages error: ", successMsg)
+
+		# Read the images off of the camera
+		# Note that "data" is a ctypes array of longs
+		# This needs to be converted later into something python can use
+		(ret, data, validfirst, validlast) = self.GetImages(first, last, dataLength)
+		msg += self.handleErrors(ret, "GetImages error: ", "Readout complete!\n")
+
+		return (self.errorFlag, msg, data)
 
 	# For convenience in error checking
 	def handleErrors(self, errorCode, msg = "", successMsg = ""):
@@ -169,47 +306,55 @@ class KRbFastKinetics(KRbiXon):
 	def __init__(self):
 		super(KRbFastKinetics, self).__init__()
 
-	# Setup acquisition modes, get allowed EM gain range
-	def armiXon(self):
-		self.errorFlag = 0
-		msg = ""
-
-		ret = self.SetAcquisitionMode(KRBCAM_ACQ_MODE)
-		successMsg = "Acquisition mode set to " + acq_modes[str(KRBCAM_ACQ_MODE)] + ".\n"
-		msg += self.handleErrors(ret, "SetAcquisitionMode error: ", successMsg)
-
-		ret = self.SetReadMode(KRBCAM_READ_MODE)
-		successMsg = "Read mode set to " + read_modes[str(KRBCAM_READ_MODE)] + ".\n"
-		msg += self.handleErrors(ret, "SetReadMode error: ", successMsg)
-
-		ret = self.SetShutter(1, KRBCAM_USE_INTERNAL_SHUTTER, self.camInfo['shutterMinT'][0], self.camInfo['shutterMinT'][1])
-		successMsg = "Shutter mode set to " + shutter_modes[str(KRBCAM_USE_INTERNAL_SHUTTER)] + ".\n"
-		msg += self.handleErrors(ret, "SetShutter error: ", successMsg)
-
-		ret = self.SetTriggerMode(KRBCAM_TRIGGER_MODE)
-		successMsg = "Trigger mode set to " + trigger_modes[str(KRBCAM_TRIGGER_MODE)] + ".\n"
-		msg += self.handleErrors(ret, "SetTriggerMode error: ", successMsg)
-
-		ret = self.SetEMGainMode(KRBCAM_EM_MODE)
-		successMsg = "EM mode set to " + em_modes[str(KRBCAM_EM_MODE)] + ".\n"
-		msg += self.handleErrors(ret, "SetEMGainMode error: ", successMsg)
-
-		(ret, range0, range1) = self.GetEMGainRange()
-		self.camInfo['emGainRange'][0] = range0
-		self.camInfo['emGainRange'][1] = range1
-
-		return (self.errorFlag, msg)
-
 	# Set EM gain, exposure times, and readout times
 	# Get acquisition timings
 	def setupAcquisition(self, config):
 		self.errorFlag = 0
 		msg = ""
+	
+		# If EM, need to use EMCCD gain register and set EMCCD gain
+		if config['emEnable']:
+			ret = self.SetOutputAmplifier(0)
+			successMsg = "Output amplifier set to EMCCD gain register.\n"
+			msg += self.handleErrors(ret, "SetOutputAmplifier error: ", successMsg)
 
-		ret = self.SetEMCCDGain(config['emGain'])
-		successMsg = "EM Gain set to " + str(config['emGain']) + ".\n"
-		msg += self.handleErrors(ret, "SetEMCCDGain error: ", successMsg)
 
+			ret = self.SetEMCCDGain(config['emGain'])
+			successMsg = "EM Gain set to " + str(config['emGain']) + ".\n"
+			msg += self.handleErrors(ret, "SetEMCCDGain error: ", successMsg)
+		# Otherwise, use the Conventional amplifier
+		else:
+			ret = self.SetOutputAmplifier(1)
+			successMsg = "Output amplifier set to conventional.\n"
+			msg += self.handleErrors(ret, "SetOutputAmplifier error: ", successMsg)
+
+		# Set the AD channel
+		ret = self.SetADChannel(config['adChannel'])
+		successMsg = "AD Channel {} selected.\n".format(config['adChannel'])
+		msg += self.handleErrors(ret, "SetADChannel error: ", successMsg)
+
+		# Set the horizontal shift speed
+
+		typ = 1
+		if config['emEnable']:
+			typ = 0
+		hss = config['hss']
+		ret = self.SetHSSpeed(typ, config['hss'])
+		successMsg = "HShiftSpeed set to {}.\n".format(self.camInfo['hss'][0][typ][hss])
+		msg += self.handleErrors(ret, "SetHSSpeed error: ", successMsg)
+
+		# Set the pre amp gain
+		pa = config['preAmpGain']
+		ret = self.SetPreAmpGain(pa)
+		successMsg = "Pre-Amp Gain set to {}.\n".format(self.camInfo['preAmpGain'][pa])
+		msg += self.handleErrors(ret, "SetPreAmpGain error: ", successMsg)
+
+		# Set the fast kinetics vertical shift speed
+		(ret) = self.SetFKVShiftSpeed(config['vss'])
+		successMsg = "FKVShiftSpeed set to {}.\n".format(config['vss'])
+		msg += self.handleErrors(ret, "SetFKVShiftSpeed error: ", successMsg)
+
+		# Set the exposure time
 		exposure = config['expTime'] * 1e-3
 		if config['binning']:
 			binning = KRBCAM_BIN_SIZE
@@ -218,36 +363,99 @@ class KRbFastKinetics(KRbiXon):
 		ret = self.SetFastKineticsEx(config['dy'], KRBCAM_FK_SERIES_LENGTH, exposure, 4, binning, binning, config['yOffset'])
 		msg += self.handleErrors(ret, "SetFastKineticsEx error: ", "Fast Kinetics set.\n")
 
+		# Get the FK exposure time
 		(ret, realExp) = self.GetFKExposureTime()
 		successMsg = "Real FK exposure time is {:.3} ms.\n".format(realExp * 1e3)
 		msg += self.handleErrors(ret, "GetFKExposureTime error: ", successMsg)
 
+		# Get the Acquisition timings
 		(ret, realExp, realAcc, realKin) = self.GetAcquisitionTimings()
-		successMsg = "Real (exp., acc., kin.) times are ({:.3}, {:.3}, {:.3}) ms.\n".format(realExp * 1e3, realAcc * 1e3, realKin * 1e3)
+		successMsg = "Real (exp., acc., kin.) times are ({:.3}, {:.3}, {:.3}) ms.\n".format(realExp * 1.0e3, realAcc * 1.0e3, realKin * 1.0e3)
 		msg += self.handleErrors(ret, "GetAcquisitionTimings error: ", successMsg)
 
+		# Get the readout time
 		(ret, readout) = self.GetReadOutTime()
 		successMsg = "Readout time is {:.3} ms.\n".format(readout * 1e3)
 		msg += self.handleErrors(ret, "GetReadoutTime error: ", successMsg)
 
 		return (self.errorFlag, msg)
 
-	# Get data from camera
-	def getData(self, dataLength):
-		self.errorFlag = 0
-		msg = ""
 
-		# Query camera for the number of available images
-		# For our typical use, should be the number of images in the kinetic series
-		# e.g., for imaging K and Rb one shot each it should be 2
-		(ret, first, last) = self.GetNumberAvailableImages()
-		successMsg = "Available images are {} to {}.\n".format(first, last)
-		msg += self.handleErrors(ret, "GetNumberAvailableImages error: ", successMsg)
+# # More specialized class for setting up Image acquisitions
+# class KRbImage(KRbiXon):
+# 	def __init__(self):
+# 		super(KRbImage, self).__init__()
 
-		# Read the images off of the camera
-		# Note that "data" is a ctypes array of longs
-		# This needs to be converted later into something python can use
-		(ret, data, validfirst, validlast) = self.GetImages(first, last, dataLength)
-		msg += self.handleErrors(ret, "GetImages error: ", "Readout complete!\n")
+# 	# Set EM gain, exposure times, and readout times
+# 	# Get acquisition timings
+# 	def setupAcquisition(self, config):
+# 		self.errorFlag = 0
+# 		msg = ""
+	
+# 		# If EM, need to use EMCCD gain register and set EMCCD gain
+# 		if config['emEnable']:
+# 			ret = self.SetOutputAmplifier(0)
+# 			successMsg = "Output amplifier set to EMCCD gain register.\n"
+# 			msg += self.handleErrors(ret, "SetOutputAmplifier error: ", successMsg)
 
-		return (self.errorFlag, msg, data)
+
+# 			ret = self.SetEMCCDGain(config['emGain'])
+# 			successMsg = "EM Gain set to " + str(config['emGain']) + ".\n"
+# 			msg += self.handleErrors(ret, "SetEMCCDGain error: ", successMsg)
+# 		# Otherwise, use the Conventional amplifier
+# 		else:
+# 			ret = self.SetOutputAmplifier(1)
+# 			successMsg = "Output amplifier set to conventional.\n"
+# 			msg += self.handleErrors(ret, "SetOutputAmplifier error: ", successMsg)
+
+# 		# Set the AD channel
+# 		ret = self.SetADChannel(config['adChannel'])
+# 		successMsg = "AD Channel {} selected.\n".format(config['adChannel'])
+# 		msg += self.handleErrors(ret, "SetADChannel error: ", successMsg)
+
+# 		# Set the horizontal shift speed
+
+# 		typ = 1
+# 		if config['emEnable']:
+# 			typ = 0
+# 		hss = config['hss']
+# 		ret = self.SetHSSpeed(typ, config['hss'])
+# 		successMsg = "HShiftSpeed set to {}.\n".format(self.camInfo['hss'][0][typ][hss])
+# 		msg += self.handleErrors(ret, "SetHSSpeed error: ", successMsg)
+
+# 		# Set the pre amp gain
+# 		pa = config['preAmpGain']
+# 		ret = self.SetPreAmpGain(pa)
+# 		successMsg = "Pre-Amp Gain set to {}.\n".format(self.camInfo['preAmpGain'][pa])
+# 		msg += self.handleErrors(ret, "SetPreAmpGain error: ", successMsg)
+
+# 		# Set the fast kinetics vertical shift speed
+# 		(ret) = self.SetFKVShiftSpeed(config['vss'])
+# 		successMsg = "FKVShiftSpeed set to {}.\n".format(config['vss'])
+# 		msg += self.handleErrors(ret, "SetFKVShiftSpeed error: ", successMsg)
+
+# 		# Set the exposure time
+# 		exposure = config['expTime'] * 1e-3
+# 		if config['binning']:
+# 			binning = KRBCAM_BIN_SIZE
+# 		else:
+# 			binning = 1
+# 		ret = self.SetFastKineticsEx(config['dy'], KRBCAM_FK_SERIES_LENGTH, exposure, 4, binning, binning, config['yOffset'])
+# 		msg += self.handleErrors(ret, "SetFastKineticsEx error: ", "Fast Kinetics set.\n")
+
+# 		# Get the FK exposure time
+# 		(ret, realExp) = self.GetFKExposureTime()
+# 		successMsg = "Real FK exposure time is {:.3} ms.\n".format(realExp * 1e3)
+# 		msg += self.handleErrors(ret, "GetFKExposureTime error: ", successMsg)
+
+# 		# Get the Acquisition timings
+# 		(ret, realExp, realAcc, realKin) = self.GetAcquisitionTimings()
+# 		successMsg = "Real (exp., acc., kin.) times are ({:.3}, {:.3}, {:.3}) ms.\n".format(realExp * 1.0e3, realAcc * 1.0e3, realKin * 1.0e3)
+# 		msg += self.handleErrors(ret, "GetAcquisitionTimings error: ", successMsg)
+
+# 		# Get the readout time
+# 		(ret, readout) = self.GetReadOutTime()
+# 		successMsg = "Readout time is {:.3} ms.\n".format(readout * 1e3)
+# 		msg += self.handleErrors(ret, "GetReadoutTime error: ", successMsg)
+
+# 		return (self.errorFlag, msg)
