@@ -48,7 +48,7 @@ default_config = {
 	'dy': str(KRBCAM_EXPOSED_ROWS),
 	'emGain': '1',
 	'emEnable': False,
-	'savePath': 'C:\\Users\\Ye Lab\\Desktop\\Kyle\\Code for experiment\\andor\\python\\andor_gui\\data\\',
+	'savePath': 'C:\\Users\\Ye Lab\\Desktop\\KRbCamPython\\data\\',
 	'vss': 3,
 	'preAmpGain': 0,
 	'adChannel': 0,
