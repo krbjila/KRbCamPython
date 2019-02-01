@@ -14,6 +14,8 @@ import numpy as np
 
 from andor_helpers import *
 
+from krb_custom_colors import KRbCustomColors
+
 layout_params = {
 	'main': [1000, 800],
 	'image': [700,500],
@@ -575,6 +577,10 @@ class ImageWindow(QtGui.QWidget):
 		self.gFKSeriesLength = KRBCAM_FK_SERIES_LENGTH
 		self.gODSeriesLength = KRBCAM_OD_SERIES_LENGTH_FK
 
+		# Colormaps
+		self.colors = KRbCustomColors()
+		self.cmaps = [self.colors.whitePlasma, self.colors.whiteJet, plt.cm.jet]
+
 		# Set default values
 		self.setDefaultValues()
 
@@ -617,6 +623,12 @@ class ImageWindow(QtGui.QWidget):
 		self.buttonGroup.addButton(self.rbSelectButton)
 		self.buttonGroup.buttonClicked.connect(self.displayData)
 
+		self.colorSelect = QtGui.QComboBox(self)
+		self.colorSelect.addItem("White Plasma")
+		self.colorSelect.addItem("White Jet")
+		self.colorSelect.addItem("Jet")
+		self.colorSelect.currentIndexChanged.connect(self.displayData)
+
 		self.frameSelect = QtGui.QComboBox(self)
 		self.frameSelect.addItem("OD")
 		self.frameSelect.addItem("Shadow")
@@ -637,7 +649,8 @@ class ImageWindow(QtGui.QWidget):
 		self.layout.addWidget(self.canvas,1,0,4,6)
 		self.layout.addWidget(self.kSelectButton,5,0)
 		self.layout.addWidget(self.rbSelectButton,5,1)
-		self.layout.addWidget(self.frameSelect,5,2,1,2)
+		self.layout.addWidget(self.colorSelect,5,2)
+		self.layout.addWidget(self.frameSelect,5,3,1,2)
 		self.layout.addWidget(self.minLabel,6,0)
 		self.layout.addWidget(self.minEdit,6,1)
 		self.layout.addWidget(self.maxLabel,6,2)
@@ -693,26 +706,32 @@ class ImageWindow(QtGui.QWidget):
 
 			(fk, od) = self.getConfig()
 
+			if max_entry < min_entry:
+				temp = min_entry
+				min_entry = max_entry
+				max_entry = temp
+
 			if od != 0:
 				max_entry = int(max_entry)
-				min_entry = int(max_entry)
-			
+				min_entry = int(min_entry)
+
 			# Update our od limits or count limits
-			(fk, od) = self.getConfig()
 			if od == 0:
 				if min_entry == max_entry:
 					max_entry += 0.1 # Avoid an issue with values pointing to each other
+
 				if self.mode == KRBCAM_ACQ_MODE_FK:
-					self.odLimits[fk] = [min(min_entry, max_entry), max(min_entry, max_entry)]
+					self.odLimits[fk] = [min_entry, max_entry]
 				elif self.mode == KRBCAM_ACQ_MODE_SINGLE:
-					self.subLimits[0] = [min(min_entry, max_entry), max(min_entry, max_entry)]
+					self.subLimits[0] = [min_entry, max_entry]
 			else:
 				if min_entry == max_entry:
 					max_entry += 1 # Avoid an issue with values pointing to each other
+
 				if self.mode == KRBCAM_ACQ_MODE_FK:
-					self.countLimits[fk] = [min(min_entry, max_entry), max(min_entry, max_entry)]
+					self.countLimits[fk] = [min_entry, max_entry]
 				elif self.mode == KRBCAM_ACQ_MODE_SINGLE:
-					self.subLimits[1] = [min(min_entry, max_entry), max(min_entry, max_entry)]
+					self.subLimits[1] = [min_entry, max_entry]
 
 			# Update the image shown on the screen
 			self.displayData()
@@ -786,7 +805,8 @@ class ImageWindow(QtGui.QWidget):
 
 		# Plot the data
 		ax = self.figure.add_subplot(111)
-		im = ax.imshow(data, vmin=vmin, vmax=vmax, cmap=plt.cm.jet)
+		color_index = self.colorSelect.currentIndex()
+		im = ax.imshow(data, vmin=vmin, vmax=vmax, cmap=self.cmaps[color_index])
 
 		# Add a horizontal colorbar
 		self.figure.colorbar(im, orientation='horizontal')

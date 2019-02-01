@@ -2,49 +2,60 @@
 ## Default settings ##
 ######################
 
+#########################################################################################
+############# Don't change stuff below this line unless you mean it! ####################
+#########################################################################################
+
 KRBCAM_ACQ_MODE_FK = 4					# 4 is Fast kinetics
 KRBCAM_ACQ_MODE_SINGLE = 1				# 1 is Single
 
 KRBCAM_ACQ_MODE = KRBCAM_ACQ_MODE_FK	# 4 is Fast Kinetics
 
-KRBCAM_READ_MODE = 4 				# 4 is Image
+KRBCAM_READ_MODE = 4 					# 4 is Image
 
-KRBCAM_TRIGGER_MODE = 1				# 0 is Internal, 1 is External
-KRBCAM_EM_MODE = 0					# 0 is Normal
-KRBCAM_EXPOSED_ROWS = 512			# Exposed rows on CCD for FK
+KRBCAM_TRIGGER_MODE = 1					# 0 is Internal, 1 is External
+KRBCAM_EM_MODE = 0						# 0 is Normal
+KRBCAM_EXPOSED_ROWS = 512				# Exposed rows on CCD for FK
 
-KRBCAM_USE_INTERNAL_SHUTTER = 1		# 1 for no, 0 for yes
+KRBCAM_USE_INTERNAL_SHUTTER = 1			# 1 for no, 0 for yes
 
 KRBCAM_FK_SERIES_LENGTH = 2
 KRBCAM_OD_SERIES_LENGTH_FK = 3			# 3 for absorption imaging
-KRBCAM_OD_SERIES_LENGTH_IMAGE = 2	# 2 for fluorescence
+KRBCAM_OD_SERIES_LENGTH_IMAGE = 2		# 2 for fluorescence
 KRBCAM_FK_BINNING_MODE = 4
 KRBCAM_N_ACC = 1
 KRBCAM_BIN_SIZE = 2
 
-KRBCAM_DEFAULT_TEMP = -20			# Celsius
-KRBCAM_MIN_TEMP = -70				# Celsius
-KRBCAM_MAX_TEMP = 20				# Celsius
-KRBCAM_TEMP_TIMER = 4				# Seconds
-KRBCAM_SAFE_TEMP = -20				# Celsius
+KRBCAM_DEFAULT_TEMP = -20				# Celsius
+KRBCAM_MIN_TEMP = -70					# Celsius
+KRBCAM_MAX_TEMP = 20					# Celsius
+KRBCAM_TEMP_TIMER = 4					# Seconds
+KRBCAM_SAFE_TEMP = -20					# Celsius
 
-KRBCAM_FAN_MODE = 2					# 0: full, 1: low, 2: off
+KRBCAM_FAN_MODE = 2						# 0: full, 1: low, 2: off
 
-KRBCAM_ACQ_TIMER = 0.3				# 0.3 s for acquisition loop
-KRBCAM_LOOP_ACQ = True				# Loop acquisition?
+KRBCAM_ACQ_TIMER = 0.3					# 0.3 s for acquisition loop
+KRBCAM_LOOP_ACQ = True					# Loop acquisition?
 
 KRBCAM_FILENAME_BASE_IMAGE = 'iXon_img'
 KRBCAM_FILENAME_BASE_FK = 'iXon_fk'
 
 KRBCAM_VERBOSE_FLAG = True
 
-KRBCAM_OD_MAX = 8
+KRBCAM_OD_MAX = 10
 
 KRBCAM_LOCAL_SAVE_PATH = 'C:\\Users\\Ye Lab\\Desktop\\KRbCamPython\\data\\'
 KRBCAM_REMOTE_SAVE_PATH = 'Z:\\DATA\\'
 KRBCAM_SAVE_PATH_SUFFIX = '%Y\\%B\\%d\\Andor\\'
 KRBCAM_DEFAULT_SAVE_PATH = KRBCAM_REMOTE_SAVE_PATH
 
+#########################################################################################
+############# Don't change stuff above this line unless you mean it! ####################
+#########################################################################################
+
+##################################
+##### GUI default parameters #####
+##################################
 
 default_config = {
 	'exposure': '1.0',
@@ -61,6 +72,10 @@ default_config = {
 	'hss': 0,
 	'binning': True
 }
+
+#####################################
+######### Dicts for lookups #########
+#####################################
 
 acq_modes = {
 	'1': 'Single Scan',
