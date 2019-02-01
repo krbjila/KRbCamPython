@@ -414,6 +414,11 @@ class MainWindow(QtGui.QWidget):
 					self.startAcquisition(data)
 				# Otherwise we are done acquiring!
 				else:
+					# Double check the directory
+					# This catches when the directory should roll over at midnight
+					self.configForm.checkDir()
+					self.gConfig = self.configForm.getFormData()
+
  					# Save data
  					if self.gAcqMode == KRBCAM_ACQ_MODE_FK:
 						for j in range(self.gFKSeriesLength):

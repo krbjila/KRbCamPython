@@ -40,6 +40,12 @@ KRBCAM_VERBOSE_FLAG = True
 
 KRBCAM_OD_MAX = 8
 
+KRBCAM_LOCAL_SAVE_PATH = 'C:\\Users\\Ye Lab\\Desktop\\KRbCamPython\\data\\'
+KRBCAM_REMOTE_SAVE_PATH = 'Z:\\DATA\\'
+KRBCAM_SAVE_PATH_SUFFIX = '%Y\\%B\\%d\\Andor\\'
+KRBCAM_DEFAULT_SAVE_PATH = KRBCAM_REMOTE_SAVE_PATH
+
+
 default_config = {
 	'exposure': '1.0',
 	'xOffset': '0',
@@ -48,7 +54,7 @@ default_config = {
 	'dy': str(KRBCAM_EXPOSED_ROWS),
 	'emGain': '1',
 	'emEnable': False,
-	'savePath': 'C:\\Users\\Ye Lab\\Desktop\\KRbCamPython\\data\\',
+	'savePath': KRBCAM_DEFAULT_SAVE_PATH,
 	'vss': 2,
 	'preAmpGain': 0,
 	'adChannel': 0,

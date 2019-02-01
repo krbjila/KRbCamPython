@@ -51,7 +51,7 @@ class ConfigForm(QtGui.QWidget):
 		# Default save path is built off of the default_config save path
 		# plus the current date
 		now = datetime.datetime.now()
-		savedir = now.strftime(default_config['savePath'] + '%Y%m%d\\')
+		savedir = now.strftime(default_config['savePath'] + KRBCAM_SAVE_PATH_SUFFIX)
 		self.savePathEdit.setText(savedir)
 
 		# Check directory
@@ -79,6 +79,22 @@ class ConfigForm(QtGui.QWidget):
 		fileNumber = 0
 		savedir = str(self.savePathEdit.text())
 
+		# Verify that the date is correct
+		suffix = datetime.datetime.now().strftime(KRBCAM_SAVE_PATH_SUFFIX)
+		if savedir.find(suffix) == -1:
+			# This only handles the case where the day is off by one because of midnight
+			# Get the date string for yesterday
+			yesterday = datetime.datetime.now() - datetime.timedelta(days=1)
+			yesterday_suffix = yesterday.strftime(KRBCAM_SAVE_PATH_SUFFIX)
+			index = savedir.find(yesterday_suffix)
+
+			if index == -1:
+				savedir += suffix # add the suffix
+			else:
+				savedir = savedir[:index] + suffix # otherwise, it has yesterday's suffix which we can replace
+			# Update the path in the GUI
+			self.savePathEdit.setText(savedir)
+
 		# Check if the directory exists
 		if os.path.isdir(savedir):
 			filelist = os.listdir(savedir)
@@ -104,7 +120,13 @@ class ConfigForm(QtGui.QWidget):
 					pass
 		# If not, make the directory
 		else:
-			os.makedirs(savedir)
+			try:
+				os.makedirs(savedir)
+			except WindowsError: # If the drive doesn't exist
+				self.throwErrorMessage("Can't set save path to: " + savedir, "Setting default local path.")
+				self.savePathEdit.setText(KRBCAM_LOCAL_SAVE_PATH + suffix)
+				self.checkDir()
+
 		# Update the file number field of the config form
 		self.fileNumberEdit.setText(str(fileNumber))
 
