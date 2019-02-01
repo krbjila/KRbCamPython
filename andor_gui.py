@@ -414,7 +414,6 @@ class MainWindow(QtGui.QWidget):
 					self.startAcquisition(data)
 				# Otherwise we are done acquiring!
 				else:
- 
  					# Save data
  					if self.gAcqMode == KRBCAM_ACQ_MODE_FK:
 						for j in range(self.gFKSeriesLength):
@@ -486,8 +485,7 @@ class MainWindow(QtGui.QWidget):
 				image = np.resize(data[i*image_length : (i+1)*image_length], (dy, dx))
 				out.append(image)
 
-			# For some reason, images come out backwards
-			return out[::-1]
+			return out
 
 	# Save data array
 	def saveData(self, data_array, kinIndex, suppress=False):

@@ -8,6 +8,8 @@ from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 
+from matplotlib import pyplot as plt
+
 import numpy as np
 
 from andor_helpers import *
@@ -646,12 +648,15 @@ class ImageWindow(QtGui.QWidget):
 			self.maxEdit.setText(str(lims[1]))
 
 			# Plot the image
-			self.plot(self.data[fk][od], lims[0], lims[1])
+			if self.mode == KRBCAM_ACQ_MODE_FK:
+				self.plot(self.data[fk][od], lims[0], lims[1])
+			elif self.mode == KRBCAM_ACQ_MODE_SINGLE:
+				self.plot(self.data[fk][od], lims[0], lims[1])
 			
 		# AttributeError will occur if no data collected, since
 		# then self.data is undefined
 		except Exception as e:
-			pass
+			print e
 
 	def setData(self, data, flag):
 		self.mode = flag
@@ -661,17 +666,27 @@ class ImageWindow(QtGui.QWidget):
 	def validateLimits(self):
 		# Try to cast to int
 		try:
-			max_entry = int(float(self.maxEdit.text()))
-			min_entry = int(float(self.minEdit.text()))
+			max_entry = float(self.maxEdit.text())
+			min_entry = float(self.minEdit.text())
 
+			(fk, od) = self.getConfig()
+
+			if od != 0:
+				max_entry = int(max_entry)
+				min_entry = int(max_entry)
+			
 			# Update our od limits or count limits
 			(fk, od) = self.getConfig()
 			if od == 0:
+				if min_entry == max_entry:
+					max_entry += 0.1 # Avoid an issue with values pointing to each other
 				if self.mode == KRBCAM_ACQ_MODE_FK:
 					self.odLimits[fk] = [min(min_entry, max_entry), max(min_entry, max_entry)]
 				elif self.mode == KRBCAM_ACQ_MODE_SINGLE:
 					self.subLimits[0] = [min(min_entry, max_entry), max(min_entry, max_entry)]
 			else:
+				if min_entry == max_entry:
+					max_entry += 1 # Avoid an issue with values pointing to each other
 				if self.mode == KRBCAM_ACQ_MODE_FK:
 					self.countLimits[fk] = [min(min_entry, max_entry), max(min_entry, max_entry)]
 				elif self.mode == KRBCAM_ACQ_MODE_SINGLE:
@@ -721,7 +736,7 @@ class ImageWindow(QtGui.QWidget):
 				shadow = od_series[0] - od_series[2]
 				background = od_series[1] - od_series[2]
 				with np.errstate(divide='ignore', invalid='ignore'):
-					od = np.log(background / shadow)
+					od = np.log(background.astype(float) / shadow.astype(float))
 
 					# Clip off infs and NaNs
 					od[od == np.inf] = KRBCAM_OD_MAX
@@ -749,7 +764,7 @@ class ImageWindow(QtGui.QWidget):
 
 		# Plot the data
 		ax = self.figure.add_subplot(111)
-		im = ax.imshow(data, vmin=vmin, vmax=vmax)
+		im = ax.imshow(data, vmin=vmin, vmax=vmax, cmap=plt.cm.jet)
 
 		# Add a horizontal colorbar
 		self.figure.colorbar(im, orientation='horizontal')

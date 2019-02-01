@@ -22,15 +22,15 @@ KRBCAM_FK_BINNING_MODE = 4
 KRBCAM_N_ACC = 1
 KRBCAM_BIN_SIZE = 2
 
-KRBCAM_DEFAULT_TEMP = -50			# Celsius
+KRBCAM_DEFAULT_TEMP = -20			# Celsius
 KRBCAM_MIN_TEMP = -70				# Celsius
 KRBCAM_MAX_TEMP = 20				# Celsius
-KRBCAM_TEMP_TIMER = 2				# Seconds
+KRBCAM_TEMP_TIMER = 4				# Seconds
 KRBCAM_SAFE_TEMP = -20				# Celsius
 
 KRBCAM_FAN_MODE = 2					# 0: full, 1: low, 2: off
 
-KRBCAM_ACQ_TIMER = 0.5				# 0.5 s for acquisition loop
+KRBCAM_ACQ_TIMER = 0.3				# 0.3 s for acquisition loop
 KRBCAM_LOOP_ACQ = True				# Loop acquisition?
 
 KRBCAM_FILENAME_BASE_IMAGE = 'iXon_img'
@@ -41,7 +41,7 @@ KRBCAM_VERBOSE_FLAG = True
 KRBCAM_OD_MAX = 8
 
 default_config = {
-	'exposure': '.01',
+	'exposure': '1.0',
 	'xOffset': '0',
 	'yOffset': '0',
 	'dx': '500',
@@ -49,7 +49,7 @@ default_config = {
 	'emGain': '1',
 	'emEnable': False,
 	'savePath': 'C:\\Users\\Ye Lab\\Desktop\\KRbCamPython\\data\\',
-	'vss': 3,
+	'vss': 2,
 	'preAmpGain': 0,
 	'adChannel': 0,
 	'hss': 0,
