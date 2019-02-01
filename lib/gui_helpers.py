@@ -646,6 +646,9 @@ class ImageWindow(QtGui.QWidget):
 		self.maxEdit.returnPressed.connect(self.validateLimits)
 		self.minEdit.returnPressed.connect(self.validateLimits)
 
+		self.autoscaleButton = QtGui.QPushButton("Autoscale", self)
+		self.autoscaleButton.clicked.connect(self.autoscale)
+
 		self.spacer = QtGui.QSpacerItem(1,1)
 
 		self.layout = QtGui.QGridLayout()
@@ -669,11 +672,22 @@ class ImageWindow(QtGui.QWidget):
 		self.layout.addWidget(self.maxLabel,8,4)
 		self.layout.addWidget(self.maxEdit,8,5)
 
+		self.layout.addWidget(self.autoscaleButton,9,4,1,2)
+
 		# Try to make the layout look nice
 		for i in range(4):
 			self.layout.setColumnStretch(i, 1)
 
 		self.setLayout(self.layout)
+
+	def autoscale(self):
+		(fk, od) = self.getConfig()
+		p10 = np.percentile(self.data[fk][od], 10)
+		p90 = np.percentile(self.data[fk][od], 90)
+
+		self.minEdit.setText(str(p10))
+		self.maxEdit.setText(str(p90))
+		self.validateLimits()
 
 	# Display the data!
 	def displayData(self):
