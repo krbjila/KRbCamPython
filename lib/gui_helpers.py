@@ -623,12 +623,14 @@ class ImageWindow(QtGui.QWidget):
 		self.buttonGroup.addButton(self.rbSelectButton)
 		self.buttonGroup.buttonClicked.connect(self.displayData)
 
+		self.colorLabel = QtGui.QLabel("Colormap", self)
 		self.colorSelect = QtGui.QComboBox(self)
 		self.colorSelect.addItem("White Plasma")
 		self.colorSelect.addItem("White Jet")
 		self.colorSelect.addItem("Jet")
 		self.colorSelect.currentIndexChanged.connect(self.displayData)
 
+		self.frameLabel = QtGui.QLabel("Frame", self)
 		self.frameSelect = QtGui.QComboBox(self)
 		self.frameSelect.addItem("OD")
 		self.frameSelect.addItem("Shadow")
@@ -644,17 +646,32 @@ class ImageWindow(QtGui.QWidget):
 		self.maxEdit.returnPressed.connect(self.validateLimits)
 		self.minEdit.returnPressed.connect(self.validateLimits)
 
+		self.spacer = QtGui.QSpacerItem(1,1)
+
 		self.layout = QtGui.QGridLayout()
+
 		self.layout.addWidget(self.toolbar,0,0,1,6)
 		self.layout.addWidget(self.canvas,1,0,4,6)
+
 		self.layout.addWidget(self.kSelectButton,5,0)
 		self.layout.addWidget(self.rbSelectButton,5,1)
-		self.layout.addWidget(self.colorSelect,5,2)
-		self.layout.addWidget(self.frameSelect,5,3,1,2)
-		self.layout.addWidget(self.minLabel,6,0)
-		self.layout.addWidget(self.minEdit,6,1)
-		self.layout.addWidget(self.maxLabel,6,2)
-		self.layout.addWidget(self.maxEdit,6,3)
+		self.layout.addItem(self.spacer,5,2)
+		self.layout.addItem(self.spacer,5,3)
+		self.layout.addWidget(self.frameLabel,5,4)
+		self.layout.addWidget(self.frameSelect,5,5,1,1)
+
+		self.layout.addWidget(self.colorLabel,6,4)
+		self.layout.addWidget(self.colorSelect,6,5)
+
+		self.layout.addWidget(self.minLabel,7,4)
+		self.layout.addWidget(self.minEdit,7,5)
+
+		self.layout.addWidget(self.maxLabel,8,4)
+		self.layout.addWidget(self.maxEdit,8,5)
+
+		# Try to make the layout look nice
+		for i in range(4):
+			self.layout.setColumnStretch(i, 1)
 
 		self.setLayout(self.layout)
 
