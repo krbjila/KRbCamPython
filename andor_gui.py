@@ -35,7 +35,8 @@ class MainWindow(QtGui.QWidget):
 		'emEnable': 0,
 		'emGain': 0,
 		'fileNumber': 0,
-		'savePath': ''
+		'savePath': '',
+		'saveFiles': True
 	}
 	# Camera parameters
 	gCamInfo = {}
@@ -419,28 +420,35 @@ class MainWindow(QtGui.QWidget):
 					self.configForm.checkDir()
 					self.gConfig = self.configForm.getFormData()
 
- 					# Save data
- 					if self.gAcqMode == KRBCAM_ACQ_MODE_FK:
-						for j in range(self.gFKSeriesLength):
-							self.saveData(data[j], j)
-						self.appendToStatus("Data saved.\n")
-					elif self.gAcqMode == KRBCAM_ACQ_MODE_SINGLE:
-						self.saveData(data[0], 0, True)
-						self.appendToStatus("Data saved.\n")
+					# If we're saving the files
+					if self.gConfig['saveFiles']:
+	 					# Save data
+	 					if self.gAcqMode == KRBCAM_ACQ_MODE_FK:
 
-					####################################################################
-					######## Lines below are commented for camera noise testing ########
-					####################################################################
+	 						# This is an ugly way of doing this but oh well
+	 						savearray = data[0]
+	 						# Save all the data as one file
+	 						# So the data file will have e.g.
+	 						# K shadow, light, dark, Rb shadow, light, dark
+							for j in range(1, self.gFKSeriesLength):
+								savearray = np.concatenate((savearray, data[j]))
+							self.saveData(savearray)
+							self.appendToStatus("Data saved.\n")
+						elif self.gAcqMode == KRBCAM_ACQ_MODE_SINGLE:
+							self.saveData(data[0])
+							self.appendToStatus("Data saved.\n")
+					else:
+						self.appendToStatus("Data saving is turned off.\n")
+
+						# Update file number
+						self.gConfig['fileNumber'] += 1
+						self.configForm.setFormData(self.gConfig)
 
 					# Display the data
 					self.imageWindow.setData(data, self.gAcqMode)
 					self.imageWindow.controlFrameSettings(self.gAcqMode) # Control radio buttons and combo boxes
 					self.imageWindow.displayData()
-
-					# Update file number
-					self.gConfig['fileNumber'] += 1
-					self.configForm.setFormData(self.gConfig)
-
+	
 					# if not looping:
 					if not self.gFlagLoop:
 						# Disable abort button, enable acquire button
@@ -493,13 +501,8 @@ class MainWindow(QtGui.QWidget):
 			return out
 
 	# Save data array
-	def saveData(self, data_array, kinIndex, suppress=False):
-		if suppress:
-			kin = ""
-		else:
-			kin = chr(ord('a') + kinIndex)
-
-		path = self.gConfig['savePath'] + self.gFileNameBase + str(self.gConfig['fileNumber']) + kin + ".csv"
+	def saveData(self, data_array):
+		path = self.gConfig['savePath'] + self.gFileNameBase + str(self.gConfig['fileNumber']) + ".csv"
 		# Open the file and write the data,
 		# comma-delimited
 		dy, dx = np.shape(data_array)

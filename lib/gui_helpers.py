@@ -12,6 +12,8 @@ from matplotlib import pyplot as plt
 
 import numpy as np
 
+from copy import deepcopy
+
 from andor_helpers import *
 
 from krb_custom_colors import KRbCustomColors
@@ -50,10 +52,13 @@ class ConfigForm(QtGui.QWidget):
 		self.emEnableControl.setChecked(default_config['emEnable'])
 		self.emGainToggle()
 
+		self.saveEnableControl.setChecked(default_config['saveFiles'])
+		self.saveControlToggle()
+
 		# Default save path is built off of the default_config save path
 		# plus the current date
 		now = datetime.datetime.now()
-		savedir = now.strftime(default_config['savePath'] + KRBCAM_SAVE_PATH_SUFFIX)
+		savedir = (default_config['savePath'] + KRBCAM_SAVE_PATH_SUFFIX).format(now)
 		self.savePathEdit.setText(savedir)
 
 		# Check directory
@@ -82,12 +87,12 @@ class ConfigForm(QtGui.QWidget):
 		savedir = str(self.savePathEdit.text())
 
 		# Verify that the date is correct
-		suffix = datetime.datetime.now().strftime(KRBCAM_SAVE_PATH_SUFFIX)
+		suffix = deepcopy(KRBCAM_SAVE_PATH_SUFFIX).format(datetime.datetime.now())
 		if savedir.find(suffix) == -1:
 			# This only handles the case where the day is off by one because of midnight
 			# Get the date string for yesterday
 			yesterday = datetime.datetime.now() - datetime.timedelta(days=1)
-			yesterday_suffix = yesterday.strftime(KRBCAM_SAVE_PATH_SUFFIX)
+			yesterday_suffix = deepcopy(KRBCAM_SAVE_PATH_SUFFIX).format(yesterday)
 			index = savedir.find(yesterday_suffix)
 
 			if index == -1:
@@ -107,10 +112,9 @@ class ConfigForm(QtGui.QWidget):
 				# e.g., a possible file number is iXon_img10a.csv
 				if self.mode == KRBCAM_ACQ_MODE_FK:
 					ind1 = len(KRBCAM_FILENAME_BASE_FK)
-					ind2 = file.find('.csv') - 1 # minus 1 to get rid of kinetics index
 				elif self.mode == KRBCAM_ACQ_MODE_SINGLE:
 					ind1 = len(KRBCAM_FILENAME_BASE_IMAGE)
-					ind2 = file.find('.csv')
+				ind2 = file.find('.csv')
 				
 				# Compare file number, if it's bigger than set fileNumber to 1 greater than that
 				try:
@@ -216,6 +220,7 @@ class ConfigForm(QtGui.QWidget):
 			form['adChannel'] = self.adChannelControl.currentIndex()
 			form['hss'] = self.hssControl.currentIndex()
 			form['preAmpGain'] = self.preAmpGainControl.currentIndex()
+			form['saveFiles'] = bool(self.saveEnableControl.isChecked())
 			return form
 		except:
 			self.throwErrorMessage("Invalid form data!", "Try again.")
@@ -259,6 +264,15 @@ class ConfigForm(QtGui.QWidget):
 		else:
 			self.vssStatic.setText("FKVS Speed")
 
+	# Save files control toggle
+	def saveControlToggle(self):
+		if self.saveEnableControl.isChecked():
+			self.savePathEdit.setDisabled(False)
+			self.fileNumberEdit.setDisabled(False)
+		else:
+			self.savePathEdit.setDisabled(True)
+			self.fileNumberEdit.setDisabled(True)
+
 	# Freeze the form when acquisition is in progress
 	def freezeForm(self, acquiring):
 		self.acquireEdit.setDisabled(acquiring)
@@ -276,6 +290,7 @@ class ConfigForm(QtGui.QWidget):
 		self.vssControl.setDisabled(acquiring)
 		self.savePathEdit.setDisabled(acquiring)
 		self.fileNumberEdit.setDisabled(acquiring)
+		self.saveEnableControl.setDisabled(acquiring)
 
 	# Populate the form with widgets
 	def populate(self):
@@ -350,6 +365,10 @@ class ConfigForm(QtGui.QWidget):
 
 		self.fileNumberStatic = QtGui.QLabel("File number:", self)
 		self.fileNumberEdit = QtGui.QLineEdit(self)
+
+		self.saveEnableStatic = QtGui.QLabel("Save files?", self)
+		self.saveEnableControl = QtGui.QCheckBox(self)
+		self.saveEnableControl.stateChanged.connect(self.saveControlToggle)
 		
 		self.layout = QtGui.QGridLayout()
 
@@ -422,6 +441,10 @@ class ConfigForm(QtGui.QWidget):
 
 		self.layout.addWidget(self.fileNumberStatic, row, 0)
 		self.layout.addWidget(self.fileNumberEdit, row, 1)
+		row += 1
+
+		self.layout.addWidget(self.saveEnableStatic, row, 0)
+		self.layout.addWidget(self.saveEnableControl, row, 1)
 
 		self.setLayout(self.layout)
 
@@ -579,7 +602,7 @@ class ImageWindow(QtGui.QWidget):
 
 		# Colormaps
 		self.colors = KRbCustomColors()
-		self.cmaps = [self.colors.whitePlasma, self.colors.whiteJet, plt.cm.jet]
+		self.cmaps = [self.colors.whiteJet, self.colors.whiteMagma, self.colors.whitePlasma, plt.cm.jet]
 
 		# Set default values
 		self.setDefaultValues()
@@ -625,8 +648,9 @@ class ImageWindow(QtGui.QWidget):
 
 		self.colorLabel = QtGui.QLabel("Colormap", self)
 		self.colorSelect = QtGui.QComboBox(self)
-		self.colorSelect.addItem("White Plasma")
 		self.colorSelect.addItem("White Jet")
+		self.colorSelect.addItem("White Magma")
+		self.colorSelect.addItem("White Plasma")
 		self.colorSelect.addItem("Jet")
 		self.colorSelect.currentIndexChanged.connect(self.displayData)
 
@@ -682,11 +706,11 @@ class ImageWindow(QtGui.QWidget):
 
 	def autoscale(self):
 		(fk, od) = self.getConfig()
-		p10 = np.percentile(self.data[fk][od], 10)
-		p90 = np.percentile(self.data[fk][od], 90)
+		low = np.percentile(self.data[fk][od], KRBCAM_AUTOSCALE_PERCENTILES[0])
+		high = np.percentile(self.data[fk][od], KRBCAM_AUTOSCALE_PERCENTILES[1])
 
-		self.minEdit.setText(str(p10))
-		self.maxEdit.setText(str(p90))
+		self.minEdit.setText(str(low))
+		self.maxEdit.setText(str(high))
 		self.validateLimits()
 
 	# Display the data!

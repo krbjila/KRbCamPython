@@ -8,6 +8,7 @@ class KRbCustomColors:
 	def __init__(self):
 		self.whitePlasma = self.makeWhitePlasma()
 		self.whiteJet = self.makeWhiteJet()
+		self.whiteMagma = self.makeWhiteMagma()
 
 	def makeWhitePlasma(self):
 		# Default colorbar
@@ -19,12 +20,29 @@ class KRbCustomColors:
 		vals[:,1] *= plasma.colors[-1][1]
 		vals[:,2] *= plasma.colors[-1][2]
 		a = np.linspace(0, 1, N)
-		vals[:, 3] = a
+		vals[:, 3] = a**2
 		whitePlasmaStart = ListedColormap(vals)
 
 		whitePlasmaColors = np.vstack((whitePlasmaStart(np.linspace(0, 1, 128)),
 		                       plasma(np.linspace(1, 0, 384))))
 		return ListedColormap(whitePlasmaColors, name='WhitePlasma')
+
+	def makeWhiteMagma(self):
+		# Default colorbar
+		magma = cm.get_cmap('magma', 256)
+
+		N = 256
+		vals = np.ones((N, 4))
+		vals[:,0] *= magma.colors[-1][0]
+		vals[:,1] *= magma.colors[-1][1]
+		vals[:,2] *= magma.colors[-1][2]
+		a = np.linspace(0, 1, N)
+		vals[:, 3] = a**2
+		whiteMagmaStart = ListedColormap(vals)
+
+		whiteMagmaColors = np.vstack((whiteMagmaStart(np.linspace(0, 1, 128)),
+		                       magma(np.linspace(1, 0, 384))))
+		return ListedColormap(whiteMagmaColors, name='WhiteMagma')
 
 	def makeWhiteJet(self):
 		colors = [

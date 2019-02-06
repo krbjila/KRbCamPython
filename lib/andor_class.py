@@ -221,9 +221,14 @@ class KRbiXon(atmcd.atmcd):
 		successMsg = "Read mode set to " + read_modes[str(KRBCAM_READ_MODE)] + ".\n"
 		msg += self.handleErrors(ret, "SetReadMode error: ", successMsg)
 
-		ret = self.SetShutter(1, KRBCAM_USE_INTERNAL_SHUTTER, self.camInfo['shutterMinT'][0], self.camInfo['shutterMinT'][1])
-		successMsg = "Shutter mode set to " + shutter_modes[str(KRBCAM_USE_INTERNAL_SHUTTER)] + ".\n"
-		msg += self.handleErrors(ret, "SetShutter error: ", successMsg)
+		if KRBCAM_USE_INTERNAL_SHUTTER:
+			ret = self.SetShutter(1, KRBCAM_USE_INTERNAL_SHUTTER, self.camInfo['shutterMinT'][0], self.camInfo['shutterMinT'][1])
+			successMsg = "Shutter mode set to " + shutter_modes[str(KRBCAM_USE_INTERNAL_SHUTTER)] + ".\n"
+			msg += self.handleErrors(ret, "SetShutter error: ", successMsg)
+		else:
+			ret = self.SetShutter(1, KRBCAM_USE_INTERNAL_SHUTTER, 0, 0)
+			successMsg = "Shutter mode set to " + shutter_modes[str(KRBCAM_USE_INTERNAL_SHUTTER)] + ".\n"
+			msg += self.handleErrors(ret, "SetShutter error: ", successMsg)
 
 		ret = self.SetTriggerMode(KRBCAM_TRIGGER_MODE)
 		successMsg = "Trigger mode set to " + trigger_modes[str(KRBCAM_TRIGGER_MODE)] + ".\n"
@@ -385,9 +390,14 @@ class KRbiXon(atmcd.atmcd):
 		successMsg = "Real (exp., acc., kin.) times are ({:.3}, {:.3}, {:.3}) ms.\n".format(realExp * 1.0e3, realAcc * 1.0e3, realKin * 1.0e3)
 		msg += self.handleErrors(ret, "GetAcquisitionTimings error: ", successMsg)
 
+		# Get the keep clean time
+		(ret, keepclean) = self.GetKeepCleanTime()
+		successMsg = "Keep clean time is {:.3} ms.\n".format(keepclean * 1.0e3)
+		msg += self.handleErrors(ret, "GetKeepCleanTime error: ", successMsg)
+
 		# Get the readout time
 		(ret, readout) = self.GetReadOutTime()
-		successMsg = "Readout time is {:.3} ms.\n".format(readout * 1e3)
+		successMsg = "Readout time is {:.3} ms.\n".format(readout * 1.0e3)
 		msg += self.handleErrors(ret, "GetReadoutTime error: ", successMsg)
 
 		return (self.errorFlag, msg)
@@ -427,9 +437,14 @@ class KRbiXon(atmcd.atmcd):
 		successMsg = "Real (exp., acc., kin.) times are ({:.3}, {:.3}, {:.3}) ms.\n".format(realExp * 1.0e3, realAcc * 1.0e3, realKin * 1.0e3)
 		msg += self.handleErrors(ret, "GetAcquisitionTimings error: ", successMsg)
 
+		# Get the keep clean time
+		(ret, keepclean) = self.GetKeepCleanTime()
+		successMsg = "Keep clean time is {} ms.\n".format(keepclean * 1.0e3)
+		msg += self.handleErrors(ret, "GetKeepCleanTime error: ", successMsg)
+
 		# Get the readout time
 		(ret, readout) = self.GetReadOutTime()
-		successMsg = "Readout time is {:.3} ms.\n".format(readout * 1e3)
+		successMsg = "Readout time is {:.3} ms.\n".format(readout * 1.0e3)
 		msg += self.handleErrors(ret, "GetReadoutTime error: ", successMsg)
 
 		return (self.errorFlag, msg)
