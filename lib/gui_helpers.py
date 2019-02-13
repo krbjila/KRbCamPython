@@ -837,7 +837,7 @@ class ImageWindow(QtGui.QWidget):
 					# Clip off infs and NaNs
 					od[od == np.inf] = KRBCAM_OD_MAX
 					od[od == -np.inf] = 0
-					od = np.where(np.isnan(od), 0, od)
+					od = np.where(np.isnan(od), KRBCAM_OD_MAX, od)
 
 				od_series = [od] + od_series
 				out.append(od_series)

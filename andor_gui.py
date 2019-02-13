@@ -502,17 +502,26 @@ class MainWindow(QtGui.QWidget):
 
 	# Save data array
 	def saveData(self, data_array):
-		path = self.gConfig['savePath'] + self.gFileNameBase + str(self.gConfig['fileNumber']) + ".csv"
+		# The save path
+		path = self.gConfig['savePath'] + self.gFileNameBase + str(self.gConfig['fileNumber'])
+		# Define a temporary path to avoid conflicts when writing file
+		# Otherwise, fitting program autoloads the file before writing is complete
+		path_temp = path + "_temp"
+		path += ".csv"
+		path_temp += ".csv"
+
 		# Open the file and write the data,
 		# comma-delimited
 		dy, dx = np.shape(data_array)
-		with open(path, 'w') as f:
+		with open(path_temp, 'w') as f:
 			for j in range(dy):
 				for k in range(dx):
 					f.write(str(data_array[j][k]))
 					if k < dx - 1:
 						f.write(',')
 				f.write('\n')
+		# Once file is written, rename to the correct filename
+		os.rename(path_temp, path)
 
 	# Abort an acquisition
 	def abortAcquisition(self):
