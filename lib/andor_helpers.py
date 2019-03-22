@@ -51,7 +51,7 @@ KRBCAM_LOCAL_SAVE_PATH = 'C:\\Users\\Ye Lab\\Desktop\\KRbCamPython\\data\\'
 
 with open('./lib/ip.txt') as f:
 	ip_str = f.read(100)
-KRBCAM_REMOTE_SAVE_PATH = '\\\\' + ip_str + '\\Seagate\\DATA\\' # PolarKRB's IP address
+KRBCAM_REMOTE_SAVE_PATH = '\\\\' + ip_str + '\\krbdata\\data\\' # PolarKRB's IP address
 KRBCAM_SAVE_PATH_SUFFIX = '{0.year}\\{0:%m}\\{0.year}{0:%m}{0:%d}\\Andor\\' # e.g. "2019\01\20190101\Andor\"
 KRBCAM_DEFAULT_SAVE_PATH = KRBCAM_REMOTE_SAVE_PATH
 
