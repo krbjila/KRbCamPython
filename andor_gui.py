@@ -71,6 +71,8 @@ class MainWindow(QtGui.QWidget):
 		self.populate()
 		self.initializeSDK()
 
+
+
 	# Initialize the Andor SDK using our KRbFastKinetics() class built on the atmcd.py python wrapper
 	def initializeSDK(self):
 		# Get form data and set the acquire button to disabled
@@ -731,6 +733,11 @@ if __name__ == '__main__':
     a = QtGui.QApplication([])
     a.setQuitOnLastWindowClosed(True)
     widget = MainWindow(reactor)
+
+    appico = QtGui.QIcon()
+    appico.addFile('main.ico')
+    widget.setWindowIcon(appico)
+
     widget.show()
     reactor.runReturn()
     sys.exit(a.exec_())
