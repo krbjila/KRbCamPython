@@ -89,18 +89,12 @@ class ConfigForm(QtGui.QWidget):
 		# Verify that the date is correct
 		suffix = deepcopy(KRBCAM_SAVE_PATH_SUFFIX).format(datetime.datetime.now())
 		if savedir.find(suffix) == -1:
-			# This only handles the case where the day is off by one because of midnight
-			# Get the date string for yesterday
-			yesterday = datetime.datetime.now() - datetime.timedelta(days=1)
-			yesterday_suffix = deepcopy(KRBCAM_SAVE_PATH_SUFFIX).format(yesterday)
-			index = savedir.find(yesterday_suffix)
-
-			if index == -1:
-				savedir += suffix # add the suffix
-			else:
-				savedir = savedir[:index] + suffix # otherwise, it has yesterday's suffix which we can replace
-			# Update the path in the GUI
-			self.savePathEdit.setText(savedir)
+			# Ensure that we are using the default save path before updating the path
+			# If we aren't, then all bets are off and we should just leave the path as is.
+			if savedir.find(KRBCAM_DEFAULT_SAVE_PATH) != -1:
+				# Update the path in the GUI
+				savedir = KRBCAM_DEFAULT_SAVE_PATH + suffix
+				self.savePathEdit.setText(savedir)
 
 		# Check if the directory exists
 		if os.path.isdir(savedir):
