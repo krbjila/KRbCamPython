@@ -21,7 +21,7 @@ from andor_helpers import *
 from krb_custom_colors import KRbCustomColors
 
 layout_params = {
-	'main': [1000, 950],
+	'main': [1000, 925],
 	'image': [700,500],
 	'figure': [6, 6]
 }
