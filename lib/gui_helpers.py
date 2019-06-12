@@ -794,7 +794,7 @@ class ImageWindow(QtGui.QWidget):
 		
 	# Determine which image to display
 	def getConfig(self):
-		if self.kSelectButton.isChecked():
+		if self.kSelectButton.isChecked() or self.mode == KRBCAM_ACQ_MODE_SINGLE:
 			fk = 0
 		else:
 			fk = 1

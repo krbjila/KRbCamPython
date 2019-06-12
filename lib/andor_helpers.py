@@ -22,6 +22,7 @@ KRBCAM_USE_INTERNAL_SHUTTER = 1			# 1 for no, 0 for yes
 KRBCAM_FK_SERIES_LENGTH = 2
 KRBCAM_OD_SERIES_LENGTH_FK = 3			# 3 for absorption imaging
 KRBCAM_OD_SERIES_LENGTH_IMAGE = 2		# 2 for fluorescence
+
 KRBCAM_FK_BINNING_MODE = 4
 KRBCAM_N_ACC = 1
 KRBCAM_BIN_SIZE = 2
@@ -72,7 +73,7 @@ default_config = {
 	'emGain': '1',
 	'emEnable': False,
 	'savePath': KRBCAM_DEFAULT_SAVE_PATH,
-	'vss': 2,
+	'vss': 3,
 	'preAmpGain': 0,
 	'adChannel': 0,
 	'hss': 0,
@@ -124,4 +125,3 @@ em_modes = {
 	'2': 'Linear mode',
 	'3': 'Real EM gain mode'
 }
-
