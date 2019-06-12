@@ -1,6 +1,8 @@
 import os
 import datetime
 
+import json
+
 from PyQt4 import QtGui, QtCore, Qt
 from PyQt4.QtCore import pyqtSignal
 
@@ -19,15 +21,16 @@ from andor_helpers import *
 from krb_custom_colors import KRbCustomColors
 
 layout_params = {
-	'main': [1000, 800],
+	'main': [1000, 950],
 	'image': [700,500],
 	'figure': [6, 6]
 }
 
+PATH_TO_LIB = os.path.dirname(os.path.abspath(__file__))
+PATH_TO_CONFIG = os.path.join(PATH_TO_LIB, "config/")
+
 # Config form for user input for setting up acquisition parameters
 class ConfigForm(QtGui.QWidget):
-	mode = KRBCAM_ACQ_MODE_FK
-
 	# Initialize
 	def __init__(self, Parent=None):
 		super(ConfigForm, self).__init__(Parent)
@@ -37,22 +40,25 @@ class ConfigForm(QtGui.QWidget):
 		self.setDefaultValues()
 
 	# These default parameters are set in the default_config dict in andor_helpers.py
-	def setDefaultValues(self):
-		self.exposureEdit.setText(default_config['exposure'])
+	def setDefaultValues(self, config=default_config):
+		self.kineticsFramesEdit.setValue(int(config['kinFrames']))
+		self.acqLengthEdit.setValue(int(config['acqLength']))
 
-		self.xOffsetEdit.setText(default_config['xOffset'])
-		self.yOffsetEdit.setText(default_config['yOffset'])
+		self.exposureEdit.setText(str(config['expTime']))
 
-		self.dxEdit.setText(default_config['dx'])
-		self.dyEdit.setText(default_config['dy'])
+		self.xOffsetEdit.setText(str(config['xOffset']))
+		self.yOffsetEdit.setText(str(config['yOffset']))
 
-		self.binningControl.setChecked(default_config['binning'])
+		self.dxEdit.setText(str(config['dx']))
+		self.dyEdit.setText(str(config['dy']))
 
-		self.emGainEdit.setText(default_config['emGain'])
-		self.emEnableControl.setChecked(default_config['emEnable'])
+		self.binningControl.setChecked(config['binning'])
+
+		self.emGainEdit.setText(str(config['emGain']))
+		self.emEnableControl.setChecked(config['emEnable'])
 		self.emGainToggle()
 
-		self.saveEnableControl.setChecked(default_config['saveFiles'])
+		self.saveEnableControl.setChecked(config['saveFiles'])
 		self.saveControlToggle()
 
 		# Default save path is built off of the default_config save path
@@ -69,13 +75,13 @@ class ConfigForm(QtGui.QWidget):
 
 		# Try to initialize the combo boxes to the right value
 		try:
-			self.adChannelControl.setCurrentIndex(default_config['adChannel'])
+			self.adChannelControl.setCurrentIndex(config['adChannel'])
 			self.controlHSSOptions()
 
-			self.hssControl.setCurrentIndex(default_config['hss'])
-			self.preAmpGainControl.setCurrentIndex(default_config['preAmpGain'])
+			self.hssControl.setCurrentIndex(config['hss'])
+			self.preAmpGainControl.setCurrentIndex(config['preAmpGain'])
 
-			self.vssControl.setCurrentIndex(default_config['vss'])
+			self.vssControl.setCurrentIndex(config['vss'])
 		# Hit exception if communication with camera isn't setup yet
 		except Exception as e:
 			pass
@@ -101,13 +107,8 @@ class ConfigForm(QtGui.QWidget):
 			filelist = os.listdir(savedir)
 			for file in filelist:
 				# Extract the file number
-				# Files are saved as KRBCAM_FILENAME_BASE + filenumber + kinetics index + .csv
-				# where kinetics index is a, b, etc. to number the images in the kinetics series
-				# e.g., a possible file number is iXon_img10a.csv
-				if self.mode == KRBCAM_ACQ_MODE_FK:
-					ind1 = len(KRBCAM_FILENAME_BASE_FK)
-				elif self.mode == KRBCAM_ACQ_MODE_SINGLE:
-					ind1 = len(KRBCAM_FILENAME_BASE_IMAGE)
+				# Files are saved as KRBCAM_FILENAME_BASE + filenumber + .csv
+				ind1 = len(KRBCAM_FILENAME_BASE)
 				ind2 = file.find('.csv')
 				
 				# Compare file number, if it's bigger than set fileNumber to 1 greater than that
@@ -200,6 +201,8 @@ class ConfigForm(QtGui.QWidget):
 		self.checkDir()
 		try:
 			form = {}
+			form['kinFrames'] = int(self.kineticsFramesEdit.value())
+			form['acqLength'] = int(self.acqLengthEdit.value())
 			form['expTime'] = float(self.exposureEdit.text())
 			form['xOffset'] = int(self.xOffsetEdit.text())
 			form['yOffset'] = int(self.yOffsetEdit.text())
@@ -224,6 +227,8 @@ class ConfigForm(QtGui.QWidget):
 	# Takes form as an input dict (should have same keys as gConfig in the main GUI)
 	# and populates the form fields with these
 	def setFormData(self, form):
+		self.kineticsFramesEdit.setValue(int(form['kinFrames']))
+		self.acqLengthEdit.setValue(int(form['acqLength']))
 		self.exposureEdit.setText(str(form['expTime']))
 		self.xOffsetEdit.setText(str(form['xOffset']))
 		self.yOffsetEdit.setText(str(form['yOffset']))
@@ -253,7 +258,12 @@ class ConfigForm(QtGui.QWidget):
 
 	# Control labels based on acquisition mode
 	def controlAcquireMode(self):
-		if self.acquireEdit.currentIndex() == 0:
+		# if self.acquireEdit.currentIndex() == 0:
+		# 	self.vssStatic.setText("VSS Speed")
+		# else:
+		# 	self.vssStatic.setText("FKVS Speed")
+
+		if int(self.kineticsFramesEdit.value()) == 1:
 			self.vssStatic.setText("VSS Speed")
 		else:
 			self.vssStatic.setText("FKVS Speed")
@@ -269,7 +279,10 @@ class ConfigForm(QtGui.QWidget):
 
 	# Freeze the form when acquisition is in progress
 	def freezeForm(self, acquiring):
-		self.acquireEdit.setDisabled(acquiring)
+		# self.acquireEdit.setDisabled(acquiring)
+
+		self.kineticsFramesEdit.setDisabled(acquiring)
+		self.acqLengthEdit.setDisabled(acquiring)
 		self.exposureEdit.setDisabled(acquiring)
 		self.emEnableControl.setDisabled(acquiring)
 		self.emGainEdit.setDisabled(acquiring)
@@ -286,20 +299,40 @@ class ConfigForm(QtGui.QWidget):
 		self.fileNumberEdit.setDisabled(acquiring)
 		self.saveEnableControl.setDisabled(acquiring)
 
+	def saveConfig(self):
+		fileName = QtGui.QFileDialog.getSaveFileName(self, "Save current configuration", PATH_TO_CONFIG, "JSON files (*.json)")
+
+		if fileName != "":
+			formData = self.getFormData()
+			formData.pop('savePath', None)
+			formData.pop('fileNumber', None)
+
+			with open(fileName, "w") as f:
+				json.dump(formData, f, indent=4, sort_keys=True)
+
+	def loadConfig(self):
+		fileName = QtGui.QFileDialog.getOpenFileName(self, "Open a configuration", PATH_TO_CONFIG, "JSON files (*.json)")
+
+		if fileName != "":
+			with open(fileName, "r") as f:
+				configData = json.load(f)
+			self.setDefaultValues(configData)
+
 	# Populate the form with widgets
 	def populate(self):
-		self.acquireStatic = QtGui.QLabel("Acquire Mode", self)
-		self.acquireEdit = QtGui.QComboBox(self)
-		self.acquireEdit.addItem("Image")
-		self.acquireEdit.addItem("Fast Kinetics")
-		self.acquireEdit.setDisabled(False)
-		self.acquireEdit.setStyleSheet("color: rgb(0,0,0);")
+		self.saveConfigControl = QtGui.QPushButton("Save config", self)
+		self.saveConfigControl.clicked.connect(self.saveConfig)
+		self.loadConfigControl = QtGui.QPushButton("Load config", self)
+		self.loadConfigControl.clicked.connect(self.loadConfig)
 
-		if KRBCAM_ACQ_MODE == 4:
-			self.acquireEdit.setCurrentIndex(1)
-		elif KRBCAM_ACQ_MODE == 1:
-			self.acquireEdit.setCurrentIndex(0)
-		self.acquireEdit.currentIndexChanged.connect(self.controlAcquireMode)
+		self.kineticsFramesStatic = QtGui.QLabel("Fast Kinetics frames", self)
+		self.kineticsFramesEdit = QtGui.QSpinBox(self)
+		self.kineticsFramesEdit.setRange(1,6)
+		self.kineticsFramesEdit.valueChanged.connect(self.controlAcquireMode)
+
+		self.acqLengthStatic = QtGui.QLabel("Acquisition loop length", self)
+		self.acqLengthEdit = QtGui.QSpinBox(self)
+		self.acqLengthEdit.setRange(1,3)
 
 		self.triggerStatic = QtGui.QLabel("Trigger Mode", self)
 		self.triggerEdit = QtGui.QLineEdit(self)
@@ -367,8 +400,23 @@ class ConfigForm(QtGui.QWidget):
 		self.layout = QtGui.QGridLayout()
 
 		row = 1
-		self.layout.addWidget(self.acquireStatic, row, 0)
-		self.layout.addWidget(self.acquireEdit, row, 1)
+		self.layout.addWidget(self.saveConfigControl, row, 0, 1, 2)
+		row += 1
+		self.layout.addWidget(self.loadConfigControl, row, 0, 1, 2)
+		row += 1
+
+		self.layout.addWidget(QtGui.QLabel(""), row, 0)
+		row += 1
+
+		self.layout.addWidget(self.kineticsFramesStatic, row, 0)
+		self.layout.addWidget(self.kineticsFramesEdit, row, 1)
+		row += 1
+
+		self.layout.addWidget(self.acqLengthStatic, row, 0)
+		self.layout.addWidget(self.acqLengthEdit, row, 1)
+		row += 1
+
+		self.layout.addWidget(QtGui.QLabel(""), row, 0)
 		row += 1
 
 		self.layout.addWidget(self.triggerStatic, row, 0)
@@ -448,7 +496,6 @@ class ConfigForm(QtGui.QWidget):
 		messageBox.setText(header)
 		messageBox.setInformativeText(msg)
 		messageBox.exec_()
-
 
 # Acquire button, abort button, status log
 class AcquireAbortStatus(QtGui.QWidget):

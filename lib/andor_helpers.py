@@ -41,8 +41,10 @@ else:
 	KRBCAM_ACQ_TIMER = 0.3				# 0.3 s for internal trigger acquisition loop
 KRBCAM_LOOP_ACQ = True					# Loop acquisition?
 
-KRBCAM_FILENAME_BASE_IMAGE = 'ixon_img_'
-KRBCAM_FILENAME_BASE_FK = 'ixon_'
+# KRBCAM_FILENAME_BASE_IMAGE = 'ixon_img_'
+# KRBCAM_FILENAME_BASE_FK = 'ixon_'
+
+KRBCAM_FILENAME_BASE = 'ixon_'
 
 KRBCAM_VERBOSE_FLAG = True
 
@@ -65,7 +67,9 @@ KRBCAM_DEFAULT_SAVE_PATH = KRBCAM_REMOTE_SAVE_PATH
 ##################################
 
 default_config = {
-	'exposure': '1.0',
+	'kinFrames': '2',
+	'acqLength': '3',
+	'expTime': '1.0',
 	'xOffset': '0',
 	'yOffset': '0',
 	'dx': '500',

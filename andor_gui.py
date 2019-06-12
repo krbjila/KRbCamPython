@@ -50,19 +50,14 @@ class MainWindow(QtGui.QWidget):
 	else:
 		gFlagLoop = KRBCAM_LOOP_ACQ
 
-	# Counter for number of shots in OD series (typically 3)
+	# Counter for number of shots in OD series
 	gCounterODSeries = 0
 
 	# Acquire mode
 	gAcqMode = KRBCAM_ACQ_MODE
-	if KRBCAM_ACQ_MODE == KRBCAM_ACQ_MODE_FK:
-		gODSeriesLength = KRBCAM_OD_SERIES_LENGTH_FK
-	elif KRBCAM_ACQ_MODE == KRBCAM_ACQ_MODE_SINGLE:
-		gODSeriesLength = KRBCAM_OD_SERIES_LENGTH_IMAGE
 
-	gFKSeriesLength = KRBCAM_FK_SERIES_LENGTH
 	gSetTemp = KRBCAM_DEFAULT_TEMP
-	gFileNameBase = KRBCAM_FILENAME_BASE_FK
+	gFileNameBase = KRBCAM_FILENAME_BASE
 
 	def __init__(self, reactor):
 		super(MainWindow, self).__init__(None)
@@ -115,29 +110,26 @@ class MainWindow(QtGui.QWidget):
 		# Update the set temperature
 		self.coolerControl.ccdSetTempEdit.returnPressed.connect(self.updateSetTempFromEdit)
 		# Acquisition mode
-		self.configForm.acquireEdit.currentIndexChanged.connect(self.controlAcquisitionMode)
+		self.configForm.kineticsFramesEdit.valueChanged.connect(self.controlAcquisitionMode)
 		# Freeze acquisitionmode
 		self.acquireAbortStatus.acquireControl.clicked.connect(lambda: self.configForm.freezeForm(True))
 		self.acquireAbortStatus.abortControl.clicked.connect(lambda: self.configForm.freezeForm(False))
 
 	# Control the acquisition mode
 	def controlAcquisitionMode(self):
-		ind = self.configForm.acquireEdit.currentIndex()
+		ind = self.configForm.kineticsFramesEdit.value()
 
+		self.gODSeriesLength = self.configForm.acqLengthEdit.value()
+		self.gFKSeriesLength = ind # No fast kinetics series, just 1 image
+		self.gFileNameBase = KRBCAM_FILENAME_BASE
+		
 		if ind == 0: # "Image"
-			self.gODSeriesLength = KRBCAM_OD_SERIES_LENGTH_IMAGE
-			self.gFKSeriesLength = 1 # No fast kinetics series, just 1 image
 			self.gAcqMode = KRBCAM_ACQ_MODE_SINGLE # Single scan
-			self.gFileNameBase = KRBCAM_FILENAME_BASE_IMAGE
-		elif ind == 1: # "Fast kinetics"
-			self.gODSeriesLength = KRBCAM_OD_SERIES_LENGTH_FK
-			self.gFKSeriesLength = KRBCAM_FK_SERIES_LENGTH # Fast kinetics series
+		else: # "Fast kinetics"
 			self.gAcqMode = KRBCAM_ACQ_MODE_FK # Fast Kinetics
-			self.gFileNameBase = KRBCAM_FILENAME_BASE_FK
 
 		self.imageWindow.gFKSeriesLength = self.gFKSeriesLength
 		self.imageWindow.gODSeriesLength = self.gODSeriesLength
-		self.configForm.mode = self.gAcqMode # Controls filename base for saving
 
 		# Update the gCamInfo struct
 		# VSS may change going from FK to Image modes
@@ -320,6 +312,14 @@ class MainWindow(QtGui.QWidget):
 		# Validate and update the form with the correct values
 		self.gConfig = self.validateFormInput(self.configForm.getFormData())
 		self.configForm.setFormData(self.gConfig)
+
+		if self.gConfig['kinFrames'] == 1:
+			self.gAcqMode = KRBCAM_ACQ_MODE_SINGLE
+		else:
+			self.gAcqMode = KRBCAM_ACQ_MODE_FK
+		self.gFKSeriesLength = self.gConfig['kinFrames']
+		self.gODSeriesLength = self.gConfig['acqLength']
+
 
 		# setupAcquisition sets the EM settings, ad channel, shift speeds, pre amp settings
 		(errf, errm) = self.AndorCamera.setupAcquisition(self.gConfig)
@@ -569,6 +569,8 @@ class MainWindow(QtGui.QWidget):
 
 	# Validate the configuration form input vs the camera data
 	def validateFormInput(self, form):
+		fk = form['kinFrames']
+
 		# validate against camera info
 		x_limit = self.gCamInfo['detDim'][0]
 		y_limit = self.gCamInfo['detDim'][1]
@@ -577,10 +579,10 @@ class MainWindow(QtGui.QWidget):
 		# the number of rows should be either the number of exposed rows
 		# or at most the size of the device / number of shots in FK series
 		if self.gAcqMode == KRBCAM_ACQ_MODE_FK:
-			if KRBCAM_EXPOSED_ROWS < self.gCamInfo['detDim'][1] / KRBCAM_FK_SERIES_LENGTH:
+			if KRBCAM_EXPOSED_ROWS < self.gCamInfo['detDim'][1] / fk:
 				y_limit = KRBCAM_EXPOSED_ROWS
 			else:
-				y_limit = self.gCamInfo['detDim'][1] / KRBCAM_FK_SERIES_LENGTH
+				y_limit = self.gCamInfo['detDim'][1] / fk
 
 		# Keep the x/y offsets within the bounds of the CCD array
 		if form['xOffset'] > x_limit:
