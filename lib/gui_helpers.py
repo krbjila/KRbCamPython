@@ -690,8 +690,6 @@ class ImageWindow(QtGui.QWidget):
 			self.resetComboBoxes(self.gFKSeriesLength, self.gAcqLoopLength)
 			config = self.getComboBoxState()
 
-		print config
-
 		for i in range(len(config)):
 			(i0, i1) = config[i]
 			widget = self.frameSelectArray[i]
@@ -836,6 +834,7 @@ class ImageWindow(QtGui.QWidget):
 				self.maxEdit.setText(str(lims[1]))
 
 				if frame == 0:
+					self.odFrames[setting] = self.calcOD(self.getComboBoxState())
 					self.plot(self.odFrames[setting], lims[0], lims[1])
 				else:
 					(i0, i1) = self.getComboBoxState()[frame-1]
