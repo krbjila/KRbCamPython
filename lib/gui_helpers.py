@@ -627,19 +627,25 @@ class CoolerControl(QtGui.QWidget):
 
 # Window for displaying images after they are acquired
 class ImageWindow(QtGui.QWidget):
+	data = []
+
 	def __init__(self, Parent=None):
 		super(ImageWindow, self).__init__(Parent)
 		self.setFixedSize(layout_params['image'][0],layout_params['image'][1])
 		self.populate()
 
 		# Default od and count limits
-		self.odLimits = [[0,3], [0,3]]
-		self.subLimits = [[-1000, 1000], [500, 2000]]
-		self.countLimits = [[500,2000], [500,2000]]
+		self.odLimits = [[0,3]]*KRBCAM_N_PLOT_SETTINGS
+		self.countLimits = [[500,2000]]*KRBCAM_N_PLOT_SETTINGS
 
-		# Initialize these to the default value
-		self.gFKSeriesLength = KRBCAM_FK_SERIES_LENGTH
-		self.gODSeriesLength = KRBCAM_OD_SERIES_LENGTH_FK
+		# [Number of acquisitions, number of kinetics frames per acquisition]
+		self.gAcqLoopLength = 0
+		self.gFKSeriesLength = 0
+
+		self.odFrames = [0]*KRBCAM_N_PLOT_SETTINGS
+
+		# Frame select state
+		self.frameSelectState = [[(None,None), (None,None), (None,None)]]*KRBCAM_N_PLOT_SETTINGS
 
 		# Colormaps
 		self.colors = KRbCustomColors()
@@ -649,28 +655,51 @@ class ImageWindow(QtGui.QWidget):
 		self.setDefaultValues()
 
 	def setDefaultValues(self):
-		self.kSelectButton.setChecked(True)
 		self.minEdit.setText(str(self.odLimits[0][0]))
 		self.maxEdit.setText(str(self.odLimits[0][1]))
 
-	def controlFrameSettings(self, mode):
-		if mode == KRBCAM_ACQ_MODE_FK:
-			self.kSelectButton.setDisabled(False)
-			self.rbSelectButton.setDisabled(False)
+	def resetComboBoxes(self, numKin, acqLength):
+		for widget in self.frameSelectArray:
+			widget.clear()
+			for i in range(acqLength):
+				for j in range(numKin):
+					widget.addItem("{},{}".format(i, j))
+			widget.setCurrentIndex(0)
 
-			self.frameSelect.clear()
-			self.frameSelect.addItem("OD")
-			self.frameSelect.addItem("Shadow")
-			self.frameSelect.addItem("Light")
-			self.frameSelect.addItem("Dark")
-		elif mode == KRBCAM_ACQ_MODE_SINGLE:
-			self.kSelectButton.setDisabled(True)
-			self.rbSelectButton.setDisabled(True)
+	def controlComboBoxes(self, numKin, acqLength):
+		if self.gAcqLoopLength != acqLength or self.gFKSeriesLength != numKin:
+			self.gAcqLoopLength = acqLength
+			self.gFKSeriesLength = numKin
 
-			self.frameSelect.clear()
-			self.frameSelect.addItem("Subtracted")
-			self.frameSelect.addItem("Fluorescence")
-			self.frameSelect.addItem("Dark")
+			self.resetComboBoxes(numKin, acqLength)
+
+	def getComboBoxState(self):
+		arr = []
+
+		for widget in self.frameSelectArray:
+			text = widget.currentText()
+			arr.append( (int(text.split(',')[0]), int(text.split(',')[1])) )
+
+		return arr
+
+	def settingChanged(self):
+		setting = self.settingSelect.currentIndex()
+		config = self.frameSelectState[setting]
+		
+		if config[0][0] == None:
+			self.resetComboBoxes(self.gFKSeriesLength, self.gAcqLoopLength)
+			config = self.getComboBoxState()
+
+		print config
+
+		for i in range(len(config)):
+			(i0, i1) = config[i]
+			widget = self.frameSelectArray[i]
+
+			index = i0*self.gFKSeriesLength + i1
+			widget.setCurrentIndex(index)
+
+		self.displayData()
 
 
 	# Populate GUI
@@ -680,12 +709,33 @@ class ImageWindow(QtGui.QWidget):
 		self.canvas = FigureCanvas(self.figure)
 		self.toolbar = NavigationToolbar(self.canvas, self)
 
-		self.buttonGroup = QtGui.QButtonGroup(self)
-		self.kSelectButton = QtGui.QRadioButton("K", self)
-		self.rbSelectButton = QtGui.QRadioButton("Rb", self)
-		self.buttonGroup.addButton(self.kSelectButton)
-		self.buttonGroup.addButton(self.rbSelectButton)
-		self.buttonGroup.buttonClicked.connect(self.displayData)
+		self.settingLabel = QtGui.QLabel("Setting")
+		self.settingSelect = QtGui.QComboBox(self)
+		self.settingSelect.addItem("0")
+		self.settingSelect.addItem("1")
+		self.settingSelect.currentIndexChanged.connect(self.settingChanged)
+
+		self.frameLabel = QtGui.QLabel("Frame")
+		self.frameSelect = QtGui.QComboBox(self)
+		self.frameSelect.addItem("OD")
+		self.frameSelect.addItem("Shadow")
+		self.frameSelect.addItem("Light")
+		self.frameSelect.addItem("Dark")
+		self.frameSelect.currentIndexChanged.connect(self.displayData)
+
+		self.shadowFrameLabel = QtGui.QLabel("Shadow")
+		self.shadowFrameSelect = QtGui.QComboBox(self)
+		self.shadowFrameSelect.currentIndexChanged.connect(self.displayData)
+
+		self.lightFrameLabel = QtGui.QLabel("Light")
+		self.lightFrameSelect = QtGui.QComboBox(self)
+		self.lightFrameSelect.currentIndexChanged.connect(self.displayData)
+
+		self.darkFrameLabel = QtGui.QLabel("Dark")
+		self.darkFrameSelect = QtGui.QComboBox(self)
+		self.darkFrameSelect.currentIndexChanged.connect(self.displayData)
+
+		self.frameSelectArray = [self.shadowFrameSelect, self.lightFrameSelect, self.darkFrameSelect]
 
 		self.colorLabel = QtGui.QLabel("Colormap", self)
 		self.colorSelect = QtGui.QComboBox(self)
@@ -694,15 +744,7 @@ class ImageWindow(QtGui.QWidget):
 		self.colorSelect.addItem("White Plasma")
 		self.colorSelect.addItem("Jet")
 		self.colorSelect.currentIndexChanged.connect(self.displayData)
-
-		self.frameLabel = QtGui.QLabel("Frame", self)
-		self.frameSelect = QtGui.QComboBox(self)
-		self.frameSelect.addItem("OD")
-		self.frameSelect.addItem("Shadow")
-		self.frameSelect.addItem("Light")
-		self.frameSelect.addItem("Dark")
-		self.frameSelect.currentIndexChanged.connect(self.displayData)
-
+		
 		self.minLabel = QtGui.QLabel("Min", self)
 		self.minEdit = QtGui.QLineEdit(self)
 		self.maxLabel = QtGui.QLabel("Max", self)
@@ -721,12 +763,20 @@ class ImageWindow(QtGui.QWidget):
 		self.layout.addWidget(self.toolbar,0,0,1,6)
 		self.layout.addWidget(self.canvas,1,0,4,6)
 
-		self.layout.addWidget(self.kSelectButton,5,0)
-		self.layout.addWidget(self.rbSelectButton,5,1)
-		self.layout.addItem(self.spacer,5,2)
-		self.layout.addItem(self.spacer,5,3)
-		self.layout.addWidget(self.frameLabel,5,4)
-		self.layout.addWidget(self.frameSelect,5,5,1,1)
+		self.layout.addWidget(self.settingLabel, 6, 0)
+		self.layout.addWidget(self.settingSelect, 6, 1)
+
+		self.layout.addWidget(self.frameLabel, 7, 0)
+		self.layout.addWidget(self.frameSelect, 7, 1)
+
+		self.layout.addWidget(self.shadowFrameLabel, 8, 0)
+		self.layout.addWidget(self.shadowFrameSelect, 8, 1)
+
+		self.layout.addWidget(self.lightFrameLabel, 9, 0)
+		self.layout.addWidget(self.lightFrameSelect, 9, 1)
+
+		self.layout.addWidget(self.darkFrameLabel, 10, 0)
+		self.layout.addWidget(self.darkFrameSelect, 10, 1)
 
 		self.layout.addWidget(self.colorLabel,6,4)
 		self.layout.addWidget(self.colorSelect,6,5)
@@ -746,9 +796,15 @@ class ImageWindow(QtGui.QWidget):
 		self.setLayout(self.layout)
 
 	def autoscale(self):
-		(fk, od) = self.getConfig()
-		low = np.percentile(self.data[fk][od], KRBCAM_AUTOSCALE_PERCENTILES[0])
-		high = np.percentile(self.data[fk][od], KRBCAM_AUTOSCALE_PERCENTILES[1])
+		(setting, frame) = self.getConfig()
+
+		if frame == 0:
+			low = np.percentile(self.odFrames[setting], KRBCAM_AUTOSCALE_PERCENTILES[0])
+			high = np.percentile(self.odFrames[setting], KRBCAM_AUTOSCALE_PERCENTILES[1])
+		else:
+			(i0, i1) = self.getComboBoxState()[frame-1]
+			low = np.percentile(self.data[i0][i1], KRBCAM_AUTOSCALE_PERCENTILES[0])
+			high = np.percentile(self.data[i0][i1], KRBCAM_AUTOSCALE_PERCENTILES[1])
 
 		self.minEdit.setText(str(low))
 		self.maxEdit.setText(str(high))
@@ -756,41 +812,42 @@ class ImageWindow(QtGui.QWidget):
 
 	# Display the data!
 	def displayData(self):
-		# Take the button states and determine what image the user wants to see
-		(fk, od) = self.getConfig()
+		if self.data:
+			try:
+				# Take the button states and determine what image the user wants to see
+				(setting, frame) = self.getConfig()
+			# If this fails, it's usually because the combo boxes are not setup yet
+			# This is okay, for example it happens when the setting is initially changed
+			# In this case, just return nothing until things are okay
+			except:
+				return
 
-		# Then try to plot the image
-		try:
+			# Then try to plot the image
+			try:
 
-			# Get the correct colorbar limits
-			if od == 0:
-				if self.mode == KRBCAM_ACQ_MODE_FK:
-					lims = self.odLimits[fk]
-				elif self.mode == KRBCAM_ACQ_MODE_SINGLE:
-					lims = self.subLimits[0]
-			else:
-				if self.mode == KRBCAM_ACQ_MODE_FK:
-					lims = self.countLimits[fk]
-				elif self.mode == KRBCAM_ACQ_MODE_SINGLE:
-					lims = self.subLimits[1]
+				# Get the correct colorbar limits
+				if frame == 0:
+					lims = self.odLimits[setting]
+				else:
+					lims = self.countLimits[setting]
 
-			# Update the text boxes
-			self.minEdit.setText(str(lims[0]))
-			self.maxEdit.setText(str(lims[1]))
+				# Update the text boxes
+				self.minEdit.setText(str(lims[0]))
+				self.maxEdit.setText(str(lims[1]))
 
-			# Plot the image
-			if self.mode == KRBCAM_ACQ_MODE_FK:
-				self.plot(self.data[fk][od], lims[0], lims[1])
-			elif self.mode == KRBCAM_ACQ_MODE_SINGLE:
-				self.plot(self.data[fk][od], lims[0], lims[1])
-			
-		# AttributeError will occur if no data collected, since
-		# then self.data is undefined
-		except Exception as e:
-			print e
+				if frame == 0:
+					self.plot(self.odFrames[setting], lims[0], lims[1])
+				else:
+					(i0, i1) = self.getComboBoxState()[frame-1]
+					self.plot(self.data[i0][i1], lims[0], lims[1])
+				
+			# AttributeError will occur if no data collected, since
+			# then self.data is undefined
+			except Exception as e:
+				print e
 
-	def setData(self, data, flag):
-		self.mode = flag
+	def setData(self, data, kinFrames, acqLength):
+		self.controlComboBoxes(kinFrames, acqLength)
 		self.data = self.processData(data)
 
 	# Validate the entered values in the min and max boxes
@@ -800,35 +857,29 @@ class ImageWindow(QtGui.QWidget):
 			max_entry = float(self.maxEdit.text())
 			min_entry = float(self.minEdit.text())
 
-			(fk, od) = self.getConfig()
+			(setting, frame) = self.getConfig()
 
 			if max_entry < min_entry:
 				temp = min_entry
 				min_entry = max_entry
 				max_entry = temp
 
-			if od != 0:
+			if frame != 0:
 				max_entry = int(max_entry)
 				min_entry = int(min_entry)
 
 			# Update our od limits or count limits
-			if od == 0:
+			if frame == 0:
 				if min_entry == max_entry:
 					max_entry += 0.1 # Avoid an issue with values pointing to each other
+				self.odLimits[setting] = [min_entry, max_entry]
 
-				if self.mode == KRBCAM_ACQ_MODE_FK:
-					self.odLimits[fk] = [min_entry, max_entry]
-				elif self.mode == KRBCAM_ACQ_MODE_SINGLE:
-					self.subLimits[0] = [min_entry, max_entry]
 			else:
 				if min_entry == max_entry:
 					max_entry += 1 # Avoid an issue with values pointing to each other
 
-				if self.mode == KRBCAM_ACQ_MODE_FK:
-					self.countLimits[fk] = [min_entry, max_entry]
-				elif self.mode == KRBCAM_ACQ_MODE_SINGLE:
-					self.subLimits[1] = [min_entry, max_entry]
-
+				self.countLimits[setting] = [min_entry, max_entry]
+				
 			# Update the image shown on the screen
 			self.displayData()
 		except:
@@ -841,57 +892,60 @@ class ImageWindow(QtGui.QWidget):
 		
 	# Determine which image to display
 	def getConfig(self):
-		if self.kSelectButton.isChecked() or self.mode == KRBCAM_ACQ_MODE_SINGLE:
-			fk = 0
-		else:
-			fk = 1
-		od = self.frameSelect.currentIndex()
-		if od == -1:
-			od = 0
-		return (fk, od)
+		config = self.getComboBoxState()
+		setting = self.settingSelect.currentIndex()
+
+		if self.frameSelectState[setting] != config:
+			self.frameSelectState[setting] = config
+			self.odFrames[setting] = self.calcOD(config)
+
+		frame = self.frameSelect.currentIndex()	
+		return (setting, frame)
+
+	def calcOD(self, config):
+		(s0, s1) = config[0]
+		(l0, l1) = config[1]
+		(d0, d1) = config[2]
+
+		shadow = self.data[s0][s1]
+		light = self.data[l0][l1]
+		dark = self.data[d0][d1]
+
+		with np.errstate(divide='ignore', invalid='ignore'):
+			od = np.log((light-dark).astype(float)/(shadow-dark).astype(float))
+			od += (light - shadow)/float(KRBCAM_C_SAT)
+			od[np.isnan(od)] = 0
+			od[np.isinf(od)] = 0
+			od[od > KRBCAM_OD_MAX] = KRBCAM_OD_MAX
+
+		return od
 
 	# Separate images, get OD image
 	def processData(self, data):
 		out = []
 
-		# Separate kinetic series, od series
-		for i in range(self.gFKSeriesLength):
-			arr = data[i]
-			od_series = []
-			
-			num_images = self.gODSeriesLength
-			(length, x) = np.shape(arr)
-			length = length / num_images
+		# Data comes in as an array sorted by FK index
+		# with acquisition loop frames concatenated
+		# 
+		# We want to change the indices for convenience
+		for i in range(self.gAcqLoopLength):
+			arr = []
 
-			# Separate OD series			
-			for j in range(num_images):
-				od_series.append(arr[j*length:(j+1)*length])
+			# Loop through kinetics frames
+			# and pull out the i-th acquisition loop frame
+			for j in range(self.gFKSeriesLength):
+				x = data[j]
+				(length, width) = np.shape(x)
 
-			# If Kinetics mode, doing absorption imaging
-			if self.mode == KRBCAM_ACQ_MODE_FK:
-				# Calculate OD of the image assuming no saturation
-				shadow = od_series[0] - od_series[2]
-				background = od_series[1] - od_series[2]
-				with np.errstate(divide='ignore', invalid='ignore'):
-					od = np.log(background.astype(float) / shadow.astype(float))
+				length /= self.gAcqLoopLength
 
-					# Clip off infs and NaNs
-					od[od == np.inf] = KRBCAM_OD_MAX
-					od[od == -np.inf] = 0
-					od = np.where(np.isnan(od), KRBCAM_OD_MAX, od)
+				arr.append(x[i*length:(i+1)*length])
 
-				od_series = [od] + od_series
-				out.append(od_series)
-			# If Image mode, doing fluorescence imaging?
-			elif self.mode == KRBCAM_ACQ_MODE_SINGLE:
-				sub = od_series[0] - od_series[1]
-				od_series = [sub] + od_series
-				out.append(od_series)
+			out.append(arr)
 
-		# Return re-arranged data
-		# Data is a 2-index array
-		# First index runs over kinetic series
-		# Second index runs over OD series
+		# Now out should be a 2d array of data
+		# First index is acquisition loop frame
+		# Second index is FK frame
 		return out
 
 	# Plot the data

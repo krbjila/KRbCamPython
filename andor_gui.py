@@ -51,7 +51,7 @@ class MainWindow(QtGui.QWidget):
 		gFlagLoop = KRBCAM_LOOP_ACQ
 
 	# Counter for number of shots in OD series
-	gCounterODSeries = 0
+	gAcqLoopCounter = 0
 
 	# Acquire mode
 	gAcqMode = KRBCAM_ACQ_MODE
@@ -119,7 +119,7 @@ class MainWindow(QtGui.QWidget):
 	def controlAcquisitionMode(self):
 		ind = self.configForm.kineticsFramesEdit.value()
 
-		self.gODSeriesLength = self.configForm.acqLengthEdit.value()
+		self.gAcqLoopLength = self.configForm.acqLengthEdit.value()
 		self.gFKSeriesLength = ind # No fast kinetics series, just 1 image
 		self.gFileNameBase = KRBCAM_FILENAME_BASE
 		
@@ -127,9 +127,6 @@ class MainWindow(QtGui.QWidget):
 			self.gAcqMode = KRBCAM_ACQ_MODE_SINGLE # Single scan
 		else: # "Fast kinetics"
 			self.gAcqMode = KRBCAM_ACQ_MODE_FK # Fast Kinetics
-
-		self.imageWindow.gFKSeriesLength = self.gFKSeriesLength
-		self.imageWindow.gODSeriesLength = self.gODSeriesLength
 
 		# Update the gCamInfo struct
 		# VSS may change going from FK to Image modes
@@ -318,7 +315,7 @@ class MainWindow(QtGui.QWidget):
 		else:
 			self.gAcqMode = KRBCAM_ACQ_MODE_FK
 		self.gFKSeriesLength = self.gConfig['kinFrames']
-		self.gODSeriesLength = self.gConfig['acqLength']
+		self.gAcqLoopLength = self.gConfig['acqLength']
 
 
 		# setupAcquisition sets the EM settings, ad channel, shift speeds, pre amp settings
@@ -353,7 +350,7 @@ class MainWindow(QtGui.QWidget):
 		self.acquireAbortStatus.acquire()
 
 		# Reset OD series counter
-		self.gCounterODSeries = 0
+		self.gAcqLoopCounter = 0
 
 		# Start acquiring data!
 		# dataArray is passed between startAcquisition and checkForData methods
@@ -396,16 +393,16 @@ class MainWindow(QtGui.QWidget):
 			# If idle, then data has been acquired
 			elif status == self.AndorCamera.DRV_IDLE:
 				# Increment OD series counter since we've taken an image
-				self.gCounterODSeries += 1
+				self.gAcqLoopCounter += 1
 
 				# Update status log
-				self.appendToStatus("Acquired {} of {} in series.\n".format(self.gCounterODSeries, self.gODSeriesLength))
+				self.appendToStatus("Acquired {} of {} in series.\n".format(self.gAcqLoopCounter, self.gAcqLoopLength))
 				
 				# Get the data off of the camera
 				newData = self.getData()
 
 				# Append it to the data array
-				if self.gCounterODSeries > 1:
+				if self.gAcqLoopCounter > 1:
 					for i in range(len(data)):
 						data[i] = np.concatenate((data[i], newData[i]))
 				else:
@@ -413,7 +410,7 @@ class MainWindow(QtGui.QWidget):
 						data.append(np.array(newData[i]))
 
 				# If need to take more in the OD series, acquire again
-				if self.gCounterODSeries < self.gODSeriesLength:
+				if self.gAcqLoopCounter < self.gAcqLoopLength:
 					self.startAcquisition(data)
 				# Otherwise we are done acquiring!
 				else:
@@ -447,8 +444,7 @@ class MainWindow(QtGui.QWidget):
 						self.configForm.setFormData(self.gConfig)
 
 					# Display the data
-					self.imageWindow.setData(data, self.gAcqMode)
-					self.imageWindow.controlFrameSettings(self.gAcqMode) # Control radio buttons and combo boxes
+					self.imageWindow.setData(data, self.gFKSeriesLength, self.gAcqLoopLength)
 					self.imageWindow.displayData()
 	
 					# if not looping:
