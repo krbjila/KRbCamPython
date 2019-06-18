@@ -377,7 +377,7 @@ class KRbiXon(atmcd.atmcd):
 			binning = KRBCAM_BIN_SIZE
 		else:
 			binning = 1
-		ret = self.SetFastKineticsEx(config['dy'], KRBCAM_FK_SERIES_LENGTH, exposure, 4, binning, binning, config['yOffset'])
+		ret = self.SetFastKineticsEx(config['dy'], config['kinFrames'], exposure, 4, binning, binning, config['yOffset'])
 		msg += self.handleErrors(ret, "SetFastKineticsEx error: ", "Fast Kinetics set.\n")
 
 		# Get the FK exposure time

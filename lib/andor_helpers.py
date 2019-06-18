@@ -19,9 +19,9 @@ KRBCAM_EXPOSED_ROWS = 512				# Exposed rows on CCD for FK
 
 KRBCAM_USE_INTERNAL_SHUTTER = 1			# 1 for no, 0 for yes
 
-KRBCAM_FK_SERIES_LENGTH = 2
-KRBCAM_OD_SERIES_LENGTH_FK = 3			# 3 for absorption imaging
-KRBCAM_OD_SERIES_LENGTH_IMAGE = 2		# 2 for fluorescence
+# KRBCAM_FK_SERIES_LENGTH = 2
+# KRBCAM_OD_SERIES_LENGTH_FK = 3			# 3 for absorption imaging
+# KRBCAM_OD_SERIES_LENGTH_IMAGE = 2		# 2 for fluorescence
 
 KRBCAM_FK_BINNING_MODE = 4
 KRBCAM_N_ACC = 1

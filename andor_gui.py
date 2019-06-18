@@ -25,19 +25,21 @@ from twisted.internet import reactor
 class MainWindow(QtGui.QWidget):
 	# Dictionary for holding camera configuration
 	# from GUI form input
-	gConfig = {
-		'expTime': 0.0,
-		'xOffset': 0,
-		'yOffset': 0,
-		'dx': 0,
-		'dy': 0,
-		'binning': 0,
-		'emEnable': 0,
-		'emGain': 0,
-		'fileNumber': 0,
-		'savePath': '',
-		'saveFiles': True
-	}
+	# gConfig = {
+	# 	'expTime': 0.0,
+	# 	'xOffset': 0,
+	# 	'yOffset': 0,
+	# 	'dx': 0,
+	# 	'dy': 0,
+	# 	'binning': 0,
+	# 	'emEnable': 0,
+	# 	'emGain': 0,
+	# 	'fileNumber': 0,
+	# 	'savePath': '',
+	# 	'saveFiles': True
+	# }
+
+	gConfig = default_config
 	# Camera parameters
 	gCamInfo = {}
 
