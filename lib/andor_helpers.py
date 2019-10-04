@@ -14,7 +14,8 @@ KRBCAM_ACQ_MODE = KRBCAM_ACQ_MODE_FK	# 4 is Fast Kinetics
 KRBCAM_READ_MODE = 4 					# 4 is Image
 
 KRBCAM_TRIGGER_MODE = 1					# 0 is Internal, 1 is External
-KRBCAM_EM_MODE = 0						# 0 is Normal
+KRBCAM_EM_MODE = 3						# 0 is Normal, 3 is RealGain
+KRBCAM_EM_ADVANCED = 0					# 1 to enable access to >300x EM gain
 KRBCAM_EXPOSED_ROWS = 512				# Exposed rows on CCD for FK
 
 KRBCAM_USE_INTERNAL_SHUTTER = 1			# 1 for no, 0 for yes

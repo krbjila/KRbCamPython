@@ -244,6 +244,13 @@ class KRbiXon(atmcd.atmcd):
 		successMsg = "EM mode set to " + em_modes[str(KRBCAM_EM_MODE)] + ".\n"
 		msg += self.handleErrors(ret, "SetEMGainMode error: ", successMsg)
 
+		ret = self.SetEMAdvanced(KRBCAM_EM_ADVANCED)
+		if KRBCAM_EM_ADVANCED:
+			successMsg = "Access to EM gain of >300x is enabled.\n"
+		else:
+			successMsg = "Access to EM gain of >300x is disabled.\n"
+		msg += self.handleErrors(ret, "SetEMAdvanced error: ", successMsg)
+
 		(ret, range0, range1) = self.GetEMGainRange()
 		self.camInfo['emGainRange'][0] = range0
 		self.camInfo['emGainRange'][1] = range1
