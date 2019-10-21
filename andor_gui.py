@@ -532,6 +532,13 @@ class MainWindow(QtGui.QWidget):
 		elif ret != self.AndorCamera.DRV_IDLE:
 			self.throwErrorMessage("AbortAcquisition error!", "Error code: {}".format(ret))
 
+		# Next, close the internal shutter for safety
+		ret2 = self.AndorCamera.SetShutter(1, 2, 0, 0)
+		if ret2 == self.AndorCamera.DRV_SUCCESS:
+			self.appendToStatus("Internal shutter closed.\n")
+		else:
+			self.throwErrorMessage("SetShutter error!", "Error code: {}".format(ret2))
+
 		# Next, kill the getData callback
 		try:
 			self.acquireCallback.cancel()
