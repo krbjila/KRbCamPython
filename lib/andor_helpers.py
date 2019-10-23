@@ -61,6 +61,8 @@ KRBCAM_REMOTE_SAVE_PATH = '\\\\' + ip_str + '\\krbdata\\data\\' # PolarKRB's IP 
 KRBCAM_SAVE_PATH_SUFFIX = '{0.year}\\{0:%m}\\{0.year}{0:%m}{0:%d}\\Andor\\' # e.g. "2019\01\20190101\Andor\"
 KRBCAM_DEFAULT_SAVE_PATH = KRBCAM_REMOTE_SAVE_PATH
 
+KRBCAM_DEFAULT_CONFIG = 'TwoSpeciesFK.json'
+
 #########################################################################################
 ############# Don't change stuff above this line unless you mean it! ####################
 #########################################################################################
@@ -69,24 +71,29 @@ KRBCAM_DEFAULT_SAVE_PATH = KRBCAM_REMOTE_SAVE_PATH
 ##### GUI default parameters #####
 ##################################
 
-default_config = {
-	'kinFrames': '2',
-	'acqLength': '3',
-	'expTime': '1.0',
-	'xOffset': '0',
-	'yOffset': '0',
-	'dx': '500',
-	'dy': str(KRBCAM_EXPOSED_ROWS),
-	'emGain': '1',
-	'emEnable': False,
-	'savePath': KRBCAM_DEFAULT_SAVE_PATH,
-	'vss': 3,
-	'preAmpGain': 0,
-	'adChannel': 0,
-	'hss': 0,
-	'binning': True,
-	'saveFiles': True
-}
+with open('./lib/config/' + KRBCAM_DEFAULT_CONFIG) as f:
+	from json import load
+	default_config = load(f)
+default_config['savePath'] = KRBCAM_DEFAULT_SAVE_PATH
+
+# default_config = {
+# 	'kinFrames': '2',
+# 	'acqLength': '3',
+# 	'expTime': '1.0',
+# 	'xOffset': '0',
+# 	'yOffset': '0',
+# 	'dx': '500',
+# 	'dy': str(KRBCAM_EXPOSED_ROWS),
+# 	'emGain': '1',
+# 	'emEnable': False,
+# 	'savePath': KRBCAM_DEFAULT_SAVE_PATH,
+# 	'vss': 3,
+# 	'preAmpGain': 0,
+# 	'adChannel': 0,
+# 	'hss': 0,
+# 	'binning': True,
+# 	'saveFiles': True
+# }
 
 KRBCAM_AUTOSCALE_PERCENTILES = [0.2, 99.8]
 

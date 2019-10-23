@@ -22,7 +22,7 @@ from krb_custom_colors import KRbCustomColors
 
 layout_params = {
 	'main': [1000, 925],
-	'image': [700,500],
+	'image': [700, 700],
 	'figure': [6, 6]
 }
 
@@ -60,6 +60,11 @@ class ConfigForm(QtGui.QWidget):
 
 		self.saveEnableControl.setChecked(config['saveFiles'])
 		self.saveControlToggle()
+
+		if config.has_key('rotateImage'):
+			self.rotateImageControl.setChecked(config['rotateImage'])
+		else:
+			self.rotateImageControl.setChecked(False)
 
 		# Default save path is built off of the default_config save path
 		# plus the current date
@@ -218,6 +223,7 @@ class ConfigForm(QtGui.QWidget):
 			form['hss'] = self.hssControl.currentIndex()
 			form['preAmpGain'] = self.preAmpGainControl.currentIndex()
 			form['saveFiles'] = bool(self.saveEnableControl.isChecked())
+			form['rotateImage'] = bool(self.rotateImageControl.isChecked())
 			return form
 		except:
 			self.throwErrorMessage("Invalid form data!", "Try again.")
@@ -298,6 +304,7 @@ class ConfigForm(QtGui.QWidget):
 		self.savePathEdit.setDisabled(acquiring)
 		self.fileNumberEdit.setDisabled(acquiring)
 		self.saveEnableControl.setDisabled(acquiring)
+		self.rotateImageControl.setDisabled(acquiring)
 
 	def saveConfig(self):
 		fileName = QtGui.QFileDialog.getSaveFileName(self, "Save current configuration", PATH_TO_CONFIG, "JSON files (*.json)")
@@ -396,6 +403,9 @@ class ConfigForm(QtGui.QWidget):
 		self.saveEnableStatic = QtGui.QLabel("Save files?", self)
 		self.saveEnableControl = QtGui.QCheckBox(self)
 		self.saveEnableControl.stateChanged.connect(self.saveControlToggle)
+
+		self.rotateImageStatic = QtGui.QLabel("Rotate image?", self)
+		self.rotateImageControl = QtGui.QCheckBox(self)
 		
 		self.layout = QtGui.QGridLayout()
 
@@ -487,6 +497,10 @@ class ConfigForm(QtGui.QWidget):
 
 		self.layout.addWidget(self.saveEnableStatic, row, 0)
 		self.layout.addWidget(self.saveEnableControl, row, 1)
+		row += 1
+
+		self.layout.addWidget(self.rotateImageStatic, row, 0)
+		self.layout.addWidget(self.rotateImageControl, row, 1)
 
 		self.setLayout(self.layout)
 
@@ -654,6 +668,12 @@ class ImageWindow(QtGui.QWidget):
 		# Set default values
 		self.setDefaultValues()
 
+	def imageRotated(self, rotate):
+		if rotate:
+			self.colorbarOrientation = 'vertical'
+		else:
+			self.colorbarOrientation = 'horizontal'
+
 	def setDefaultValues(self):
 		self.minEdit.setText(str(self.odLimits[0][0]))
 		self.maxEdit.setText(str(self.odLimits[0][1]))
@@ -711,6 +731,7 @@ class ImageWindow(QtGui.QWidget):
 		self.settingSelect = QtGui.QComboBox(self)
 		self.settingSelect.addItem("0")
 		self.settingSelect.addItem("1")
+		self.settingSelect.setToolTip("K: 0; Rb: 1")
 		self.settingSelect.currentIndexChanged.connect(self.settingChanged)
 
 		self.frameLabel = QtGui.QLabel("Frame")
@@ -723,14 +744,17 @@ class ImageWindow(QtGui.QWidget):
 
 		self.shadowFrameLabel = QtGui.QLabel("Shadow")
 		self.shadowFrameSelect = QtGui.QComboBox(self)
+		self.shadowFrameSelect.setToolTip("K: (0,0); Rb: (0,1)")
 		self.shadowFrameSelect.currentIndexChanged.connect(self.displayData)
 
 		self.lightFrameLabel = QtGui.QLabel("Light")
 		self.lightFrameSelect = QtGui.QComboBox(self)
+		self.lightFrameSelect.setToolTip("K: (1,0); Rb: (1,1)")
 		self.lightFrameSelect.currentIndexChanged.connect(self.displayData)
 
 		self.darkFrameLabel = QtGui.QLabel("Dark")
 		self.darkFrameSelect = QtGui.QComboBox(self)
+		self.darkFrameSelect.setToolTip("K: (2,0); Rb: (2,1)")
 		self.darkFrameSelect.currentIndexChanged.connect(self.displayData)
 
 		self.frameSelectArray = [self.shadowFrameSelect, self.lightFrameSelect, self.darkFrameSelect]
@@ -759,33 +783,43 @@ class ImageWindow(QtGui.QWidget):
 		self.layout = QtGui.QGridLayout()
 
 		self.layout.addWidget(self.toolbar,0,0,1,6)
-		self.layout.addWidget(self.canvas,1,0,4,6)
+		self.layout.addWidget(self.canvas,1,0,6,6)
+		
+		row = 8
+		self.layout.addWidget(self.settingLabel, row, 0)
+		self.layout.addWidget(self.settingSelect, row, 1)
+		row += 1
 
-		self.layout.addWidget(self.settingLabel, 6, 0)
-		self.layout.addWidget(self.settingSelect, 6, 1)
+		self.layout.addWidget(self.frameLabel, row, 0)
+		self.layout.addWidget(self.frameSelect, row, 1)
+		row += 1
 
-		self.layout.addWidget(self.frameLabel, 7, 0)
-		self.layout.addWidget(self.frameSelect, 7, 1)
+		self.layout.addWidget(self.shadowFrameLabel, row, 0)
+		self.layout.addWidget(self.shadowFrameSelect, row, 1)
+		row += 1
 
-		self.layout.addWidget(self.shadowFrameLabel, 8, 0)
-		self.layout.addWidget(self.shadowFrameSelect, 8, 1)
+		self.layout.addWidget(self.lightFrameLabel, row, 0)
+		self.layout.addWidget(self.lightFrameSelect, row, 1)
+		row += 1
 
-		self.layout.addWidget(self.lightFrameLabel, 9, 0)
-		self.layout.addWidget(self.lightFrameSelect, 9, 1)
+		self.layout.addWidget(self.darkFrameLabel, row, 0)
+		self.layout.addWidget(self.darkFrameSelect, row, 1)
+		row += 1
 
-		self.layout.addWidget(self.darkFrameLabel, 10, 0)
-		self.layout.addWidget(self.darkFrameSelect, 10, 1)
+		row = 8
+		self.layout.addWidget(self.colorLabel,row,4)
+		self.layout.addWidget(self.colorSelect,row,5)
+		row += 1
 
-		self.layout.addWidget(self.colorLabel,6,4)
-		self.layout.addWidget(self.colorSelect,6,5)
+		self.layout.addWidget(self.minLabel,row,4)
+		self.layout.addWidget(self.minEdit,row,5)
+		row += 1
 
-		self.layout.addWidget(self.minLabel,7,4)
-		self.layout.addWidget(self.minEdit,7,5)
+		self.layout.addWidget(self.maxLabel,row,4)
+		self.layout.addWidget(self.maxEdit,row,5)
+		row += 1
 
-		self.layout.addWidget(self.maxLabel,8,4)
-		self.layout.addWidget(self.maxEdit,8,5)
-
-		self.layout.addWidget(self.autoscaleButton,9,4,1,2)
+		self.layout.addWidget(self.autoscaleButton,row,4,1,2)
 
 		# Try to make the layout look nice
 		for i in range(4):
@@ -958,7 +992,7 @@ class ImageWindow(QtGui.QWidget):
 		im = ax.imshow(data, vmin=vmin, vmax=vmax, cmap=self.cmaps[color_index])
 
 		# Add a horizontal colorbar
-		self.figure.colorbar(im, orientation='horizontal')
+		self.figure.colorbar(im, orientation=self.colorbarOrientation)
 
 		# Need to do the following to get the z data to show up in the toolbar
 		numrows, numcols = np.shape(data)

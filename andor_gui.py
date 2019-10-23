@@ -403,13 +403,23 @@ class MainWindow(QtGui.QWidget):
 				# Get the data off of the camera
 				newData = self.getData()
 
+				# If we need to rotate image
+				if self.gConfig['rotateImage']:
+					# The axes are kinetics frame, height, width
+					# Need to 
+					newData = np.flip(np.swapaxes(np.array(newData), 1, 2), axis=-1)
+				else:
+					newData = np.array(newData)
+
+				print np.shape(np.array(newData))
+
 				# Append it to the data array
 				if self.gAcqLoopCounter > 1:
 					for i in range(len(data)):
 						data[i] = np.concatenate((data[i], newData[i]))
 				else:
 					for i in range(len(newData)):
-						data.append(np.array(newData[i]))
+						data.append(newData[i])
 
 				# If need to take more in the OD series, acquire again
 				if self.gAcqLoopCounter < self.gAcqLoopLength:
@@ -446,6 +456,7 @@ class MainWindow(QtGui.QWidget):
 						self.configForm.setFormData(self.gConfig)
 
 					# Display the data
+					self.imageWindow.imageRotated(self.gConfig['rotateImage'])
 					self.imageWindow.setData(data, self.gFKSeriesLength, self.gAcqLoopLength)
 					self.imageWindow.displayData()
 	
