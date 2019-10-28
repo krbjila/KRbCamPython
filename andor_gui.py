@@ -521,16 +521,19 @@ class MainWindow(QtGui.QWidget):
 		path += ".csv"
 		path_temp += ".csv"
 
-		# Open the file and write the data,
-		# comma-delimited
-		dy, dx = np.shape(data_array)
-		with open(path_temp, 'w') as f:
-			for j in range(dy):
-				for k in range(dx):
-					f.write(str(data_array[j][k]))
-					if k < dx - 1:
-						f.write(',')
-				f.write('\n')
+		# # Open the file and write the data,
+		# # comma-delimited
+		# dy, dx = np.shape(data_array)
+		# with open(path_temp, 'w') as f:
+		# 	for j in range(dy):
+		# 		for k in range(dx):
+		# 			f.write(str(data_array[j][k]))
+		# 			if k < dx - 1:
+		# 				f.write(',')
+		# 		f.write('\n')
+
+		np.savetxt(path_temp, data_array, fmt='%d', delimiter=',')
+
 		# Once file is written, rename to the correct filename
 		os.rename(path_temp, path)
 
