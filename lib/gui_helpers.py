@@ -21,7 +21,7 @@ from andor_helpers import *
 from krb_custom_colors import KRbCustomColors
 
 layout_params = {
-	'main': [1000, 925],
+	'main': [1000, 975],
 	'image': [700, 700],
 	'figure': [6, 6]
 }
@@ -66,10 +66,18 @@ class ConfigForm(QtGui.QWidget):
 		else:
 			self.rotateImageControl.setChecked(False)
 
+		try:
+			self.saveFolderEdit.setText(config['saveFolder'])
+			self.fileBaseEdit.setText(config['filebase'])
+		except:
+			self.saveFolderEdit.setText(KRBCAM_DEFAULT_FOLDER)
+			self.fileBaseEdit.setText(KRBCAM_DEFAULT_FILENAME_BASE)
+		folder = str(self.saveFolderEdit.text()) + '\\'
+
 		# Default save path is built off of the default_config save path
 		# plus the current date
 		now = datetime.datetime.now()
-		savedir = (default_config['savePath'] + KRBCAM_SAVE_PATH_SUFFIX).format(now)
+		savedir = (default_config['savePath'] + KRBCAM_SAVE_PATH_SUFFIX + folder).format(now)
 		self.savePathEdit.setText(savedir)
 
 		# Check directory
@@ -96,9 +104,13 @@ class ConfigForm(QtGui.QWidget):
 	def checkDir(self):
 		fileNumber = 0
 		savedir = str(self.savePathEdit.text())
+		folder = str(self.saveFolderEdit.text())
+		filebase = str(self.fileBaseEdit.text()) + '_'
 
-		# Verify that the date is correct
-		suffix = deepcopy(KRBCAM_SAVE_PATH_SUFFIX).format(datetime.datetime.now())
+		# Last part of the path that includes the date information and the folder
+		suffix = deepcopy(KRBCAM_SAVE_PATH_SUFFIX).format(datetime.datetime.now()) + folder + '\\'
+
+		# Verify that the date and folder are correct
 		if savedir.find(suffix) == -1:
 			# Ensure that we are using the default save path before updating the path
 			# If we aren't, then all bets are off and we should just leave the path as is.
@@ -113,7 +125,7 @@ class ConfigForm(QtGui.QWidget):
 			for file in filelist:
 				# Extract the file number
 				# Files are saved as KRBCAM_FILENAME_BASE + filenumber + .csv
-				ind1 = len(KRBCAM_FILENAME_BASE)
+				ind1 = len(filebase)
 				ind2 = file.find('.csv')
 				
 				# Compare file number, if it's bigger than set fileNumber to 1 greater than that
@@ -218,6 +230,8 @@ class ConfigForm(QtGui.QWidget):
 			form['emGain'] = int(self.emGainEdit.text())
 			form['fileNumber'] = int(self.fileNumberEdit.text())
 			form['savePath'] = str(self.savePathEdit.text())
+			form['saveFolder'] = str(self.saveFolderEdit.text())
+			form['filebase'] = str(self.fileBaseEdit.text())
 			form['vss'] = self.vssControl.currentIndex()
 			form['adChannel'] = self.adChannelControl.currentIndex()
 			form['hss'] = self.hssControl.currentIndex()
@@ -245,6 +259,8 @@ class ConfigForm(QtGui.QWidget):
 		self.emGainEdit.setText(str(form['emGain']))
 		self.fileNumberEdit.setText(str(form['fileNumber']))
 		self.savePathEdit.setText(form['savePath'])
+		self.saveFolderEdit.setText(form['saveFolder'])
+		self.fileBaseEdit.setText(form['filebase'])
 
 	# If the EM enable box is checked, then enable the EM gain field
 	# Otherwise, disable the EM gain field
@@ -302,6 +318,8 @@ class ConfigForm(QtGui.QWidget):
 		self.binningControl.setDisabled(acquiring)
 		self.vssControl.setDisabled(acquiring)
 		self.savePathEdit.setDisabled(acquiring)
+		self.saveFolderEdit.setDisabled(acquiring)
+		self.fileBaseEdit.setDisabled(acquiring)
 		self.fileNumberEdit.setDisabled(acquiring)
 		self.saveEnableControl.setDisabled(acquiring)
 		self.rotateImageControl.setDisabled(acquiring)
@@ -394,8 +412,14 @@ class ConfigForm(QtGui.QWidget):
 			self.vssStatic = QtGui.QLabel("VSS Speed", self)
 		self.vssControl = QtGui.QComboBox(self)
 
-		self.savePathStatic = QtGui.QLabel("Save to:", self)
+		self.savePathStatic = QtGui.QLabel("Save data directory:", self)
 		self.savePathEdit = QtGui.QLineEdit(self)
+
+		self.saveFolderStatic = QtGui.QLabel("Folder name:", self)
+		self.saveFolderEdit = QtGui.QLineEdit(self)
+
+		self.fileBaseStatic = QtGui.QLabel("Filename base:", self)
+		self.fileBaseEdit = QtGui.QLineEdit(self)
 
 		self.fileNumberStatic = QtGui.QLabel("File number:", self)
 		self.fileNumberEdit = QtGui.QLineEdit(self)
@@ -489,6 +513,14 @@ class ConfigForm(QtGui.QWidget):
 
 		self.layout.addWidget(self.savePathStatic, row, 0)
 		self.layout.addWidget(self.savePathEdit, row, 1)
+		row += 1
+
+		self.layout.addWidget(self.saveFolderStatic, row, 0)
+		self.layout.addWidget(self.saveFolderEdit, row, 1)
+		row += 1
+
+		self.layout.addWidget(self.fileBaseStatic, row, 0)
+		self.layout.addWidget(self.fileBaseEdit, row, 1)
 		row += 1
 
 		self.layout.addWidget(self.fileNumberStatic, row, 0)

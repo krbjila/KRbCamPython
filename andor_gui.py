@@ -59,7 +59,8 @@ class MainWindow(QtGui.QWidget):
 	gAcqMode = KRBCAM_ACQ_MODE
 
 	gSetTemp = KRBCAM_DEFAULT_TEMP
-	gFileNameBase = KRBCAM_FILENAME_BASE
+	gFileNameBase = gConfig['filebase']
+	gSaveFolder = gConfig['saveFolder']
 
 	def __init__(self, reactor):
 		super(MainWindow, self).__init__(None)
@@ -520,17 +521,6 @@ class MainWindow(QtGui.QWidget):
 		path_temp = path + "_temp"
 		path += ".csv"
 		path_temp += ".csv"
-
-		# # Open the file and write the data,
-		# # comma-delimited
-		# dy, dx = np.shape(data_array)
-		# with open(path_temp, 'w') as f:
-		# 	for j in range(dy):
-		# 		for k in range(dx):
-		# 			f.write(str(data_array[j][k]))
-		# 			if k < dx - 1:
-		# 				f.write(',')
-		# 		f.write('\n')
 
 		np.savetxt(path_temp, data_array, fmt='%d', delimiter=',')
 

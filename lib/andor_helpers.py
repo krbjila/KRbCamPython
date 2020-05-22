@@ -45,7 +45,8 @@ KRBCAM_LOOP_ACQ = True					# Loop acquisition?
 # KRBCAM_FILENAME_BASE_IMAGE = 'ixon_img_'
 # KRBCAM_FILENAME_BASE_FK = 'ixon_'
 
-KRBCAM_FILENAME_BASE = 'ixon_'
+KRBCAM_DEFAULT_FILENAME_BASE = 'ixon'
+KRBCAM_DEFAULT_FOLDER = 'Andor'
 
 KRBCAM_VERBOSE_FLAG = True
 
@@ -58,7 +59,7 @@ KRBCAM_LOCAL_SAVE_PATH = 'C:\\Users\\Ye Lab\\Desktop\\KRbCamPython\\data\\'
 with open('./lib/ip.txt') as f:
 	ip_str = f.read(100)
 KRBCAM_REMOTE_SAVE_PATH = '\\\\' + ip_str + '\\krbdata\\data\\' # PolarKRB's IP address
-KRBCAM_SAVE_PATH_SUFFIX = '{0.year}\\{0:%m}\\{0.year}{0:%m}{0:%d}\\Andor\\' # e.g. "2019\01\20190101\Andor\"
+KRBCAM_SAVE_PATH_SUFFIX = '{0.year}\\{0:%m}\\{0.year}{0:%m}{0:%d}\\' # e.g. "2019\01\20190101\Andor\"
 KRBCAM_DEFAULT_SAVE_PATH = KRBCAM_REMOTE_SAVE_PATH
 
 KRBCAM_DEFAULT_CONFIG = 'TwoSpeciesFK.json'
@@ -75,6 +76,11 @@ with open('./lib/config/' + KRBCAM_DEFAULT_CONFIG) as f:
 	from json import load
 	default_config = load(f)
 default_config['savePath'] = KRBCAM_DEFAULT_SAVE_PATH
+
+if not default_config.has_key('filebase'):
+	default_config['filebase'] = KRBCAM_DEFAULT_FILENAME_BASE
+if not default_config.has_key('saveFolder'):
+	default_config['saveFolder'] = KRBCAM_DEFAULT_FOLDER
 
 # default_config = {
 # 	'kinFrames': '2',
