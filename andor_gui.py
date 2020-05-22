@@ -59,8 +59,9 @@ class MainWindow(QtGui.QWidget):
 	gAcqMode = KRBCAM_ACQ_MODE
 
 	gSetTemp = KRBCAM_DEFAULT_TEMP
-	gFileNameBase = gConfig['filebase']
-	gSaveFolder = gConfig['saveFolder']
+
+	# gFileNameBase = gConfig['filebase']
+	# gSaveFolder = gConfig['saveFolder']
 
 	def __init__(self, reactor):
 		super(MainWindow, self).__init__(None)
@@ -515,7 +516,7 @@ class MainWindow(QtGui.QWidget):
 	# Save data array
 	def saveData(self, data_array):
 		# The save path
-		path = self.gConfig['savePath'] + self.gFileNameBase + str(self.gConfig['fileNumber'])
+		path = self.gConfig['savePath'] + self.gConfig['filebase'] + '_' + str(self.gConfig['fileNumber'])
 		# Define a temporary path to avoid conflicts when writing file
 		# Otherwise, fitting program autoloads the file before writing is complete
 		path_temp = path + "_temp"
