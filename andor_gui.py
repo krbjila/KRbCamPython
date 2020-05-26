@@ -25,21 +25,8 @@ from twisted.internet import reactor
 class MainWindow(QtGui.QWidget):
 	# Dictionary for holding camera configuration
 	# from GUI form input
-	# gConfig = {
-	# 	'expTime': 0.0,
-	# 	'xOffset': 0,
-	# 	'yOffset': 0,
-	# 	'dx': 0,
-	# 	'dy': 0,
-	# 	'binning': 0,
-	# 	'emEnable': 0,
-	# 	'emGain': 0,
-	# 	'fileNumber': 0,
-	# 	'savePath': '',
-	# 	'saveFiles': True
-	# }
-
 	gConfig = default_config
+
 	# Camera parameters
 	gCamInfo = {}
 
@@ -70,8 +57,6 @@ class MainWindow(QtGui.QWidget):
 		self.populate()
 		self.initializeSDK()
 
-
-
 	# Initialize the Andor SDK using our KRbFastKinetics() class built on the atmcd.py python wrapper
 	def initializeSDK(self):
 		# Get form data and set the acquire button to disabled
@@ -99,7 +84,6 @@ class MainWindow(QtGui.QWidget):
 			self.acquireAbortStatus.acquireControl.setDisabled(False)
 			self.coolerControl.setTempRange(self.gCamInfo)
 			self.connectSignals()
-
 
 	# Connect PyQt button signals
 	def connectSignals(self):
@@ -563,16 +547,14 @@ class MainWindow(QtGui.QWidget):
 
 		self.layout = QtGui.QGridLayout()
 
-		self.configForm = ConfigForm(self)
-		self.layout.addWidget(self.configForm, 0, 0)
-
-		self.acquireAbortStatus = AcquireAbortStatus(self)
-		self.layout.addWidget(self.acquireAbortStatus, 1, 0)
-
-		self.coolerControl = CoolerControl(self)
-		self.layout.addWidget(self.coolerControl, 2, 0)
-
 		self.imageWindow = ImageWindow(self)
+		self.configForm = ConfigForm(self.imageWindow, self)
+		self.acquireAbortStatus = AcquireAbortStatus(self)
+		self.coolerControl = CoolerControl(self)
+
+		self.layout.addWidget(self.configForm, 0, 0)
+		self.layout.addWidget(self.acquireAbortStatus, 1, 0)
+		self.layout.addWidget(self.coolerControl, 2, 0)
 		self.layout.addWidget(self.imageWindow, 0, 1)
 		
 		self.setLayout(self.layout)

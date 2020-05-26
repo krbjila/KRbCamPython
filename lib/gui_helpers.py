@@ -32,10 +32,14 @@ PATH_TO_CONFIG = os.path.join(PATH_TO_LIB, "config/")
 # Config form for user input for setting up acquisition parameters
 class ConfigForm(QtGui.QWidget):
 	# Initialize
-	def __init__(self, Parent=None):
+	def __init__(self, iw, Parent=None):
 		super(ConfigForm, self).__init__(Parent)
 		# Populate form widgets
 		self.populate()
+
+		# Ugly but for now:
+		self.imageWindow = iw
+
 		# Set default values for config form entries
 		self.setDefaultValues()
 
@@ -98,6 +102,10 @@ class ConfigForm(QtGui.QWidget):
 		# Hit exception if communication with camera isn't setup yet
 		except Exception as e:
 			pass
+
+		self.imageWindow.controlComboBoxes(int(config['kinFrames']), int(config['acqLength']))
+		if config.has_key('fss'):
+			self.imageWindow.setFrameSelectState(config['fss'])
 
 	# Check save directory and file number
 	# using path defined in the save path field
@@ -329,6 +337,10 @@ class ConfigForm(QtGui.QWidget):
 
 		if fileName != "":
 			formData = self.getFormData()
+
+			fss = self.imageWindow.getFrameSelectState()
+			formData["fss"] = fss
+
 			formData.pop('savePath', None)
 			formData.pop('fileNumber', None)
 
@@ -342,6 +354,10 @@ class ConfigForm(QtGui.QWidget):
 			with open(fileName, "r") as f:
 				configData = json.load(f)
 			self.setDefaultValues(configData)
+
+			self.imageWindow.controlComboBoxes(int(configData['kinFrames']), int(configData['acqLength']))
+			if configData.has_key("fss"):
+				self.imageWindow.setFrameSelectState(configData["fss"])
 
 	# Populate the form with widgets
 	def populate(self):
@@ -699,6 +715,17 @@ class ImageWindow(QtGui.QWidget):
 
 		# Set default values
 		self.setDefaultValues()
+
+	def setFrameSelectState(self, fss):
+		self.frameSelectState = fss
+
+		a = self.gAcqLoopLength
+		fk = self.gFKSeriesLength
+		for f,w in zip(fss[0], self.frameSelectArray):
+			w.setCurrentIndex(f[0]*fk + f[1])
+
+	def getFrameSelectState(self):
+		return self.frameSelectState
 
 	def imageRotated(self, rotate):
 		if rotate:
