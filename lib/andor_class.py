@@ -76,6 +76,24 @@ class KRbiXon(atmcd.atmcd):
 		ret = self.Initialize("/usr/local/etc/andor") #initialise camera
 		msg += self.handleErrors(ret, "Init. error: ", "SDK initialized.\n")
 
+		# Get available cameras
+		(ret, self.nCameras) = self.GetAvailableCameras()
+		successMsg = + str(self.nCameras) + "are available.\n"
+		msg += self.handleErrors(ret, "GetAvailableCameras error: ", successMsg)
+
+		self.serials = []
+		for i in range(1, self.nCameras):
+			# Switch to camera
+			(ret, self.currentCamera) = self.SetCurrentCamera(i)
+			successMsg = "Current camera set to " + str(self.currentCamera) + ".\n"
+			msg += self.handleErrors(ret, "SetCurrentCamera error: ", successMsg)
+
+			# Get serial number
+			(ret, serial) = self.GetCameraSerialNumber()
+			self.serials.append(serial)
+			successMsg = "Serial number is " + str(serial) + ".\n"
+			msg += self.handleErrors(ret, "GetCameraSerialNumber error: ", successMsg)
+
 		# Get capabilities structure
 		(ret, self.caps) = self.GetCapabilities()
 		msg += self.handleErrors(ret, "GetCapabilities error: ", "")
