@@ -77,23 +77,35 @@ class KRbiXon(atmcd.atmcd):
 		msg += self.handleErrors(ret, "Init. error: ", "SDK initialized.\n")
 
 		# Get available cameras
-		(ret, self.nCameras) = self.GetAvailableCameras()
-		successMsg = + str(self.nCameras) + "are available.\n"
+		(ret, nCameras) = self.GetAvailableCameras()
+		successMsg = str(nCameras) + "are available.\n"
 		msg += self.handleErrors(ret, "GetAvailableCameras error: ", successMsg)
 
-		self.serials = []
-		for i in range(1, self.nCameras):
-			# Switch to camera
-			(ret, self.currentCamera) = self.SetCurrentCamera(i)
-			successMsg = "Current camera set to " + str(self.currentCamera) + ".\n"
-			msg += self.handleErrors(ret, "SetCurrentCamera error: ", successMsg)
+		serials = []
+		for i in range(nCameras):
+			ser = self.selectCamera(i)
+			serials.append(ser)
 
-			# Get serial number
-			(ret, serial) = self.GetCameraSerialNumber()
-			self.serials.append(serial)
-			successMsg = "Serial number is " + str(serial) + ".\n"
-			msg += self.handleErrors(ret, "GetCameraSerialNumber error: ", successMsg)
+		return (self.errorFlag, serials, msg)
 
+	def selectCamera(self, index):
+		msg = ""
+
+		# Switch to camera
+		ret = self.SetCurrentCamera(index)
+		successMsg = "Current camera set to " + str(index) + ".\n"
+		msg += self.handleErrors(ret, "SetCurrentCamera error: ", successMsg)
+
+		print ret
+
+		# Get serial number
+		(ret, serial) = self.GetCameraSerialNumber()
+		successMsg = "Serial number is " + str(serial) + ".\n"
+		msg += self.handleErrors(ret, "GetCameraSerialNumber error: ", successMsg)
+
+		return serial
+
+	def setupCamera(self):
 		# Get capabilities structure
 		(ret, self.caps) = self.GetCapabilities()
 		msg += self.handleErrors(ret, "GetCapabilities error: ", "")

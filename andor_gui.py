@@ -21,6 +21,17 @@ import qtreactor.pyqt4reactor
 qtreactor.pyqt4reactor.install()
 from twisted.internet import reactor
 
+# Camera selection pop-up
+class CameraSelect(QtGui.QDialog):
+	def __init__(self, serials, parent=None):
+		super(CameraSelect, self).__init__(parent)
+		self.serials = serials
+		self.populate()
+
+	def populate(self):
+		layout = QtGui.QVBoxLayout()
+		print self.serials
+
 # Main GUI Program
 class MainWindow(QtGui.QWidget):
 	# Dictionary for holding camera configuration
@@ -55,35 +66,53 @@ class MainWindow(QtGui.QWidget):
 		self.reactor = reactor
 		self.setFixedSize(layout_params['main'][0],layout_params['main'][1])
 		self.populate()
-		self.initializeSDK()
+
+		serials = self.initializeSDK()
+		if serials:		
+			self.dialog = CameraSelect(serials)
+			self.dialog.exec_()
+
+			self.setupCamera()
+
+	def initializeSDK(self):
+		self.AndorCamera = KRbiXon()
+		(errf, serials, errm) = self.AndorCamera.initializeSDK()
+
+		# If an error, raise warnings, stop the camera, and close the window
+		if errf:
+			self.throwErrorMessage("SDK initialization error! Try to restart the GUI.", errm)
+			return []
+		else:
+			self.appendToStatus(errm)
+			return serials
 
 	# Initialize the Andor SDK using our KRbFastKinetics() class built on the atmcd.py python wrapper
-	def initializeSDK(self):
+	def setupCamera(self):
 		# Get form data and set the acquire button to disabled
 		self.gConfig = self.configForm.getFormData()
 		self.acquireAbortStatus.acquireControl.setDisabled(True)
 
-		# Initialize the object
-		self.AndorCamera = KRbiXon()
+		# # Initialize the object
+		# self.AndorCamera = KRbiXon()
 
-		# Initialize the device
-		(errf, errm) = self.AndorCamera.initializeSDK()
-		# If an error, raise warnings, stop the camera, and close the window
-		if errf:
-			self.throwErrorMessage("SDK initialization error! Try to restart the GUI.", errm)
-		# Otherwise, things are working!
-		# Update the status window and connect signals for acquire and abort
-		else:
-			self.appendToStatus(errm)
-			self.gCamInfo = self.AndorCamera.camInfo
+		# # Initialize the device
+		# (errf, errm) = self.AndorCamera.initializeSDK()
+		# # If an error, raise warnings, stop the camera, and close the window
+		# if errf:
+		# 	self.throwErrorMessage("SDK initialization error! Try to restart the GUI.", errm)
+		# # Otherwise, things are working!
+		# # Update the status window and connect signals for acquire and abort
+		# else:
 
-			# Set up vertical shift speed control, pre amp gain, adc channel
-			self.configForm.setupComboBoxes(self.gCamInfo)
-			self.configForm.setDefaultValues()
+		self.gCamInfo = self.AndorCamera.camInfo
 
-			self.acquireAbortStatus.acquireControl.setDisabled(False)
-			self.coolerControl.setTempRange(self.gCamInfo)
-			self.connectSignals()
+		# Set up vertical shift speed control, pre amp gain, adc channel
+		self.configForm.setupComboBoxes(self.gCamInfo)
+		self.configForm.setDefaultValues()
+
+		self.acquireAbortStatus.acquireControl.setDisabled(False)
+		self.coolerControl.setTempRange(self.gCamInfo)
+		self.connectSignals()
 
 	# Connect PyQt button signals
 	def connectSignals(self):
