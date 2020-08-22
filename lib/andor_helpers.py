@@ -71,6 +71,7 @@ KRBCAM_SAVE_PATH_SUFFIX = '{0.year}\\{0:%m}\\{0.year}{0:%m}{0:%d}\\' # e.g. "201
 KRBCAM_DEFAULT_SAVE_PATH = KRBCAM_REMOTE_SAVE_PATH
 
 KRBCAM_DEFAULT_CONFIG = 'TwoSpeciesFK.json'
+KRBCAM_DEFAULT_CONFIG_VERTICAL = 'TwoSpeciesVertical.json'
 
 #########################################################################################
 ############# Don't change stuff above this line unless you mean it! ####################

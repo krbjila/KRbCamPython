@@ -8,6 +8,8 @@ import time
 import numpy as np
 from copy import deepcopy
 
+import json
+
 import sys
 sys.path.append("./lib/")
 sys.path.append("./lib/sdk2/")
@@ -89,8 +91,7 @@ class MainWindow(QtGui.QWidget):
 
 	gSetTemp = KRBCAM_DEFAULT_TEMP
 
-	gCameraName = ""
-	gPath = ""
+	gCameraSerial = 0
 
 	# gFileNameBase = gConfig['filebase']
 	# gSaveFolder = gConfig['saveFolder']
@@ -129,11 +130,9 @@ class MainWindow(QtGui.QWidget):
 					if errf:
 						self.throwErrorMessage("SDK initialization error! Try to restart the GUI.", errm)
 					else:
-						s = serials[cameraIndex]
-						
-						gCameraName = str(s) + ": " + KRBCAM_SERIALS[str(s)]
-						gPath = KRBCAM_SERIALS[str(s)]
-						self.configForm.cameraNameStatic.setText(gCameraName)
+						self.gCameraSerial = serials[cameraIndex]
+						cameraName = str(self.gCameraSerial) + ": " + KRBCAM_SERIALS[str(self.gCameraSerial)]
+						self.configForm.cameraNameStatic.setText(cameraName)
 
 						self.setupCamera()
 				else:
@@ -167,7 +166,14 @@ class MainWindow(QtGui.QWidget):
 
 		# Set up vertical shift speed control, pre amp gain, adc channel
 		self.configForm.setupComboBoxes(self.gCamInfo)
-		self.configForm.setDefaultValues()
+
+		# Auto set config for vertical
+		if KRBCAM_SERIALS[str(self.gCameraSerial)] == "vertical":
+			with open('./lib/config/' + KRBCAM_DEFAULT_CONFIG_VERTICAL) as f:
+				config = json.load(f)
+			self.configForm.setDefaultValues(config)
+		else:
+			self.configForm.setDefaultValues()
 
 		self.acquireAbortStatus.acquireControl.setDisabled(False)
 		self.coolerControl.setTempRange(self.gCamInfo)
