@@ -23,14 +23,45 @@ from twisted.internet import reactor
 
 # Camera selection pop-up
 class CameraSelect(QtGui.QDialog):
-	def __init__(self, serials, parent=None):
+	def __init__(self, serials, realindex, parent=None):
 		super(CameraSelect, self).__init__(parent)
+		self.setWindowTitle("Camera select")
+		self.setFixedSize(300,100)
+
 		self.serials = serials
+		self.realIndex = realindex
+
+		self.lookup = KRBCAM_SERIALS
+
 		self.populate()
 
 	def populate(self):
 		layout = QtGui.QVBoxLayout()
-		print self.serials
+
+		self.combo = QtGui.QComboBox()
+
+		for i, s in enumerate(self.serials):
+			self.combo.addItem(str(s) + ": " + self.lookup[str(s)])
+
+		button = QtGui.QPushButton("Select")
+		button.clicked.connect(self._accept)
+
+		layout.addWidget(self.combo)
+		layout.addWidget(button)
+
+		self.setLayout(layout)
+
+	def _accept(self):
+		self.ind = self.combo.currentIndex()
+		self.accept()
+
+	def getSelected(self):
+		return self.realIndex[self.ind]
+
+	def closeEvent(self, event):
+		self.reject()
+		event.accept()
+
 
 # Main GUI Program
 class MainWindow(QtGui.QWidget):
@@ -58,6 +89,9 @@ class MainWindow(QtGui.QWidget):
 
 	gSetTemp = KRBCAM_DEFAULT_TEMP
 
+	gCameraName = ""
+	gPath = ""
+
 	# gFileNameBase = gConfig['filebase']
 	# gSaveFolder = gConfig['saveFolder']
 
@@ -67,12 +101,43 @@ class MainWindow(QtGui.QWidget):
 		self.setFixedSize(layout_params['main'][0],layout_params['main'][1])
 		self.populate()
 
+		# Get list of serial numbers of connected cameras
 		serials = self.initializeSDK()
-		if serials:		
-			self.dialog = CameraSelect(serials)
-			self.dialog.exec_()
+		if serials:
 
-			self.setupCamera()
+			# When an instance of the SDK is already talking to a camera,
+			# the serial number is 0. So clean these unavailable cameras away:
+			realindex = []
+			serials_nonzero = []
+			for i, s in enumerate(serials):
+				if s and KRBCAM_SERIALS.has_key(str(s)):
+					serials_nonzero.append(s)
+					realindex.append(i)
+
+			# Check if any nonzero serials:
+			if not len(serials_nonzero):
+				self.throwErrorMessage("No available cameras! Please close the GUI.", "")
+			else:
+				# Open the dialog:
+				self.dialog = CameraSelect(serials_nonzero, realindex)
+
+				# Dialog accepted
+				if self.dialog.exec_():
+					cameraIndex = self.dialog.getSelected()
+					(errf, errm) = self.selectCamera(cameraIndex)
+
+					if errf:
+						self.throwErrorMessage("SDK initialization error! Try to restart the GUI.", errm)
+					else:
+						s = serials[cameraIndex]
+						
+						gCameraName = str(s) + ": " + KRBCAM_SERIALS[str(s)]
+						gPath = KRBCAM_SERIALS[str(s)]
+						self.configForm.cameraNameStatic.setText(gCameraName)
+
+						self.setupCamera()
+				else:
+					self.throwErrorMessage("No camera selected! Restart the GUI.", "")
 
 	def initializeSDK(self):
 		self.AndorCamera = KRbiXon()
@@ -86,24 +151,18 @@ class MainWindow(QtGui.QWidget):
 			self.appendToStatus(errm)
 			return serials
 
+	def selectCamera(self, index):
+		(errf0, errm0) = self.AndorCamera.selectCamera(index)
+		(errf1, errm1) = self.AndorCamera.initializeCamera()
+		return (errf0 or errf1, errm0 + errm1)
+
 	# Initialize the Andor SDK using our KRbFastKinetics() class built on the atmcd.py python wrapper
 	def setupCamera(self):
 		# Get form data and set the acquire button to disabled
 		self.gConfig = self.configForm.getFormData()
 		self.acquireAbortStatus.acquireControl.setDisabled(True)
 
-		# # Initialize the object
-		# self.AndorCamera = KRbiXon()
-
-		# # Initialize the device
-		# (errf, errm) = self.AndorCamera.initializeSDK()
-		# # If an error, raise warnings, stop the camera, and close the window
-		# if errf:
-		# 	self.throwErrorMessage("SDK initialization error! Try to restart the GUI.", errm)
-		# # Otherwise, things are working!
-		# # Update the status window and connect signals for acquire and abort
-		# else:
-
+		self.AndorCamera.setupCamera()
 		self.gCamInfo = self.AndorCamera.camInfo
 
 		# Set up vertical shift speed control, pre amp gain, adc channel

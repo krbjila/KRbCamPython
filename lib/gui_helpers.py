@@ -361,6 +361,12 @@ class ConfigForm(QtGui.QWidget):
 
 	# Populate the form with widgets
 	def populate(self):
+		self.cameraNameStatic = QtGui.QLabel("", self)
+		font = self.cameraNameStatic.font()
+		font.setPointSize(14)
+		font.setBold(True)
+		self.cameraNameStatic.setFont(font)
+
 		self.saveConfigControl = QtGui.QPushButton("Save config", self)
 		self.saveConfigControl.clicked.connect(self.saveConfig)
 		self.loadConfigControl = QtGui.QPushButton("Load config", self)
@@ -450,6 +456,8 @@ class ConfigForm(QtGui.QWidget):
 		self.layout = QtGui.QGridLayout()
 
 		row = 1
+		self.layout.addWidget(self.cameraNameStatic, row, 0, 4, 4)
+		row += 4
 		self.layout.addWidget(self.saveConfigControl, row, 0, 1, 2)
 		row += 1
 		self.layout.addWidget(self.loadConfigControl, row, 0, 1, 2)

@@ -72,40 +72,66 @@ class KRbiXon(atmcd.atmcd):
 		self.errorFlag = 0
 		msg = ""
 
-		# Initialize
-		ret = self.Initialize("/usr/local/etc/andor") #initialise camera
-		msg += self.handleErrors(ret, "Init. error: ", "SDK initialized.\n")
-
 		# Get available cameras
 		(ret, nCameras) = self.GetAvailableCameras()
-		successMsg = str(nCameras) + "are available.\n"
+		successMsg = str(nCameras) + " are available.\n"
 		msg += self.handleErrors(ret, "GetAvailableCameras error: ", successMsg)
 
 		serials = []
 		for i in range(nCameras):
-			ser = self.selectCamera(i)
-			serials.append(ser)
+			self.selectCamera(i)
+			(errf, ser, errm) = self.getCameraSerial(True)
+
+			if not errf:
+				serials.append(ser)
 
 		return (self.errorFlag, serials, msg)
 
+	def initializeCamera(self):
+		ret = self.Initialize("/usr/local/etc/andor") #initialise camera
+		msg = self.handleErrors(ret, "Init. error: ", "SDK initialized.\n")
+		return (self.errorFlag, msg)
+
+	# Select camera by index
 	def selectCamera(self, index):
 		msg = ""
 
+		(ret, handle) = self.GetCameraHandle(index)
+		msg += self.handleErrors(ret, "GetCameraHandle error: ", "")
+
 		# Switch to camera
-		ret = self.SetCurrentCamera(index)
+		ret = self.SetCurrentCamera(handle)
 		successMsg = "Current camera set to " + str(index) + ".\n"
 		msg += self.handleErrors(ret, "SetCurrentCamera error: ", successMsg)
 
-		print ret
+		return (self.errorFlag, msg)
 
-		# Get serial number
-		(ret, serial) = self.GetCameraSerialNumber()
-		successMsg = "Serial number is " + str(serial) + ".\n"
-		msg += self.handleErrors(ret, "GetCameraSerialNumber error: ", successMsg)
+	# Get the serial number of the selected camera
+	# Need to run self.selectCamera(index) first
+	def getCameraSerial(self, shutdown=False):
+		msg = ""
 
-		return serial
+		# Need to initialize camera first
+		(errf, errm) = self.initializeCamera()
+
+		if not errf:
+			# Get serial number
+			(ret, serial) = self.GetCameraSerialNumber()
+			successMsg = "Serial number is " + str(serial) + ".\n"
+			msg += self.handleErrors(ret, "GetCameraSerialNumber error: ", successMsg)
+
+			if shutdown:
+				# De-initialize selected camera
+				ret = self.ShutDown()
+				msg += self.handleErrors(ret, "ShutDown error: ", "SDK shut down successfully.\n")
+
+			return (self.errorFlag, serial, msg)
+		else:
+			return (self.errorFlag, -1, msg)
 
 	def setupCamera(self):
+		msg = ""
+
 		# Get capabilities structure
 		(ret, self.caps) = self.GetCapabilities()
 		msg += self.handleErrors(ret, "GetCapabilities error: ", "")
