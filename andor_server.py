@@ -22,7 +22,7 @@ class AndorServer(LabradServer):
     name = '%LABRADNODE%_andor'
 
     def __init__(self):
-        self.name = 'krbhyperimage_andor'
+        self.name = 'imaging_andor'
         super(AndorServer, self).__init__()
         self.axial_fname = ''
         self.vertical_fname = ''
@@ -31,19 +31,25 @@ class AndorServer(LabradServer):
     def set_filename(self, c, filename='', axial=True):
         if axial:
             self.axial_fname = filename
+            print("setting axial filename to %s" % (filename))
         else:
             self.vertical_fname = filename
+            print("setting vertical filename to %s" % (filename))
 
     @setting(2, returns='s')
     def get_filename(self, c):
         if c["axial"]:
-            returnValue(self.axial_fname)
+            return(self.axial_fname)
         else:
-            returnValue(self.vertical_fname)
+            return(self.vertical_fname)
 
     @setting(3, axial='b')
     def set_axial(self, c, axial):
         c["axial"] = axial
+        if axial:
+        	print("Setting client %d to axial" % (c.ID[0]))
+        else:
+        	print("Setting client %d to vertical" % (c.ID[0]))
 
 if __name__ == '__main__':
     from labrad import util

@@ -24,6 +24,8 @@ qtreactor.pyqt4reactor.install()
 from twisted.internet import reactor
 
 import labrad
+sys.path.append("./client_tools")
+from connection import connection
 
 # Camera selection pop-up
 class CameraSelect(QtGui.QDialog):
@@ -104,6 +106,8 @@ class MainWindow(QtGui.QWidget):
 		self.setFixedSize(layout_params['main'][0],layout_params['main'][1])
 		self.populate()
 
+		self.server = None
+
 		# Get list of serial numbers of connected cameras
 		serials = self.initializeSDK()
 		if serials:
@@ -162,13 +166,17 @@ class MainWindow(QtGui.QWidget):
 		(errf1, errm1) = self.AndorCamera.initializeCamera()
 		return (errf0 or errf1, errm0 + errm1)
 
+	@inlineCallbacks
 	def setupLabRAD(self, cameraName):
-		cxn = labrad.connect()
-		self.server = cxn.servers['krbhyperimage_andor']
+		self.cxn = connection()
+		yield self.cxn.connect()
+		self.server = yield self.cxn.get_server('imaging_andor')
 		if "axial" in cameraName:
 			self.server.set_axial(True)
+			print("connected to LabRAD server as axial camera")
 		else:
 			self.server.set_axial(False)
+			print("connected to LabRAD server as vertical camera")
 
 	# Initialize the Andor SDK using our KRbFastKinetics() class built on the atmcd.py python wrapper
 	def setupCamera(self):
@@ -607,17 +615,18 @@ class MainWindow(QtGui.QWidget):
 			return out
 
 	# Save data array
+	@inlineCallbacks
 	def saveData(self, data_array):
 		# The save path
 		path = ''
 		if self.server is not None:
 			try:
-				path = self.server.get_filename()
+				path = yield self.server.get_filename()
 			except Exception as e:
 				print(e)
 		if path == '':
-			self.gConfig['savePath'] + self.gConfig['filebase'] + '_' + str(self.gConfig['fileNumber'])
-			
+			path = self.gConfig['savePath'] + self.gConfig['filebase'] + '_' + str(self.gConfig['fileNumber'])
+		print('saving to:' + path)
 		# Define a temporary path to avoid conflicts when writing file
 		# Otherwise, fitting program autoloads the file before writing is complete
 		path_temp = path + "_temp"
@@ -841,14 +850,14 @@ class MainWindow(QtGui.QWidget):
 
 
 if __name__ == '__main__':
-    a = QtGui.QApplication([])
-    a.setQuitOnLastWindowClosed(True)
-    widget = MainWindow(reactor)
+	a = QtGui.QApplication([])
+	a.setQuitOnLastWindowClosed(True)
+	widget = MainWindow(reactor)
 
-    appico = QtGui.QIcon()
-    appico.addFile('main.ico')
-    widget.setWindowIcon(appico)
+	appico = QtGui.QIcon()
+	appico.addFile('main.ico')
+	widget.setWindowIcon(appico)
 
-    widget.show()
-    reactor.runReturn()
-    sys.exit(a.exec_())
+	widget.show()
+	reactor.runReturn()
+	sys.exit(a.exec_())
