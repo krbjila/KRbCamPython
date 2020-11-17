@@ -23,6 +23,8 @@ import qtreactor.pyqt4reactor
 qtreactor.pyqt4reactor.install()
 from twisted.internet import reactor
 
+import labrad
+
 # Camera selection pop-up
 class CameraSelect(QtGui.QDialog):
 	def __init__(self, serials, realindex, parent=None):
@@ -134,6 +136,11 @@ class MainWindow(QtGui.QWidget):
 						cameraName = str(self.gCameraSerial) + ": " + KRBCAM_SERIALS[str(self.gCameraSerial)]
 						self.configForm.cameraNameStatic.setText(cameraName)
 
+						try:
+							self.setupLabRAD(cameraName)
+						except Exception as e:
+							print(e)
+							self.server = None
 						self.setupCamera()
 				else:
 					self.throwErrorMessage("No camera selected! Restart the GUI.", "")
@@ -154,6 +161,14 @@ class MainWindow(QtGui.QWidget):
 		(errf0, errm0) = self.AndorCamera.selectCamera(index)
 		(errf1, errm1) = self.AndorCamera.initializeCamera()
 		return (errf0 or errf1, errm0 + errm1)
+
+	def setupLabRAD(self, cameraName):
+		cxn = labrad.connect()
+		self.server = cxn.servers['krbhyperimage_andor']
+		if "axial" in cameraName:
+			self.server.set_axial(True)
+		else:
+			self.server.set_axial(False)
 
 	# Initialize the Andor SDK using our KRbFastKinetics() class built on the atmcd.py python wrapper
 	def setupCamera(self):
@@ -594,7 +609,15 @@ class MainWindow(QtGui.QWidget):
 	# Save data array
 	def saveData(self, data_array):
 		# The save path
-		path = self.gConfig['savePath'] + self.gConfig['filebase'] + '_' + str(self.gConfig['fileNumber'])
+		path = ''
+		if self.server is not None:
+			try:
+				path = self.server.get_filename()
+			except Exception as e:
+				print(e)
+		if path == '':
+			self.gConfig['savePath'] + self.gConfig['filebase'] + '_' + str(self.gConfig['fileNumber'])
+			
 		# Define a temporary path to avoid conflicts when writing file
 		# Otherwise, fitting program autoloads the file before writing is complete
 		path_temp = path + "_temp"
