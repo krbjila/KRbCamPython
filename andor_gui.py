@@ -476,13 +476,12 @@ class MainWindow(QtGui.QWidget):
 			self.throwErrorMessage("Error communicating with camera.", msg)
 		else:
 			# If still acquiring, run the timer again
-			if status == self.AndorCamera.DRV_ACQUIRING:
-				if self.gAcqLoopCounter and not self.timed_out:
+			if status == self.AndorCamera.DRV_ACQUIRING and not self.timed_out:
+				if self.gAcqLoopCounter:
 					elapsed = datetime.now() - self.gAcqLoopTimer
 					if elapsed.total_seconds() > ACQUISITION_TIMEOUT:
 						self.appendToStatus("Timed out. Resetting...\n")
 						self.timed_out = True
-						self.abortAcquisition()
 				else:
 					self.gAcqLoopTimer = datetime.now()
 
@@ -491,7 +490,7 @@ class MainWindow(QtGui.QWidget):
 				self.acquireCallback = self.reactor.callLater(KRBCAM_ACQ_TIMER, self.checkForData, data)
 
 			# If idle, then data has been acquired
-			elif status == self.AndorCamera.DRV_IDLE:
+			elif status == self.AndorCamera.DRV_IDLE or self.timed_out:
 				# Increment OD series counter since we've taken an image
 				self.gAcqLoopCounter += 1
 
