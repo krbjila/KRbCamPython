@@ -23,6 +23,10 @@ import qtreactor.pyqt4reactor
 qtreactor.pyqt4reactor.install()
 from twisted.internet import reactor
 
+from datetime import datetime
+
+ACQUISITION_TIMEOUT = 10 #s
+
 # Camera selection pop-up
 class CameraSelect(QtGui.QDialog):
 	def __init__(self, serials, realindex, parent=None):
@@ -98,6 +102,9 @@ class MainWindow(QtGui.QWidget):
 
 	def __init__(self, reactor):
 		super(MainWindow, self).__init__(None)
+		self.timed_out = False
+
+
 		self.reactor = reactor
 		self.setFixedSize(layout_params['main'][0],layout_params['main'][1])
 		self.populate()
@@ -439,6 +446,7 @@ class MainWindow(QtGui.QWidget):
 		# to hold data
 		# Hopefully this does not result in memory leaks...?
 		dataArray = []
+		self.timed_out = False
 		self.startAcquisition(dataArray)
 
 	# Start acquisition
@@ -469,7 +477,17 @@ class MainWindow(QtGui.QWidget):
 		else:
 			# If still acquiring, run the timer again
 			if status == self.AndorCamera.DRV_ACQUIRING:
+				if self.gAcqLoopCounter and not self.timed_out:
+					elapsed = datetime.now() - self.gAcqLoopTimer
+					if elapsed.total_seconds() > ACQUISITION_TIMEOUT:
+						self.appendToStatus("Timed out. Resetting...\n")
+						self.timed_out = True
+						self.abortAcquisition()
+				else:
+					self.gAcqLoopTimer = datetime.now()
+
 				# Check back for new data later
+				# If timed out, append blank images
 				self.acquireCallback = self.reactor.callLater(KRBCAM_ACQ_TIMER, self.checkForData, data)
 
 			# If idle, then data has been acquired
@@ -503,7 +521,10 @@ class MainWindow(QtGui.QWidget):
 
 				# If need to take more in the OD series, acquire again
 				if self.gAcqLoopCounter < self.gAcqLoopLength:
-					self.startAcquisition(data)
+					if self.timed_out:
+						self.acquireCallback = self.reactor.callLater(KRBCAM_ACQ_TIMER, self.checkForData, data)
+					else:
+						self.startAcquisition(data)
 				# Otherwise we are done acquiring!
 				else:
 					# Double check the directory
@@ -563,33 +584,36 @@ class MainWindow(QtGui.QWidget):
 			dx /= KRBCAM_BIN_SIZE
 		dataLength = self.gFKSeriesLength * dy * dx
 
-		# Now ask the camera for data
-		# getData first queries the camera for available images
-		# then takes the images
-		(errf, errm, data) = self.AndorCamera.getData(dataLength)
-		if errf:
-			self.throwErrorMessage("Data readout error:", errm)
-			self.abortAcquisition()
-			return -1
+		if self.timed_out:
+			return [np.zeros(dy, dx) for i in range(self.gFKSeriesLength)]
 		else:
-			# Data is returned as a ctypes array of c_longs
-			# Need to convert to numpy array
-			data = np.ctypeslib.as_array(data)
+			# Now ask the camera for data
+			# getData first queries the camera for available images
+			# then takes the images
+			(errf, errm, data) = self.AndorCamera.getData(dataLength)
+			if errf:
+				self.throwErrorMessage("Data readout error:", errm)
+				self.abortAcquisition()
+				return -1
+			else:
+				# Data is returned as a ctypes array of c_longs
+				# Need to convert to numpy array
+				data = np.ctypeslib.as_array(data)
 
-			out = []
+				out = []
 
-			# Data is returned as one long array
-			# Need to split it up to get the individual images
-			num_images = self.gFKSeriesLength
-			image_length = len(data)/num_images
-			
-			# For each Fast Kinetics frame:
-			for i in range(num_images):
-				# Get the image and resize to the correct dimensions
-				image = np.resize(data[i*image_length : (i+1)*image_length], (dy, dx))
-				out.append(image)
+				# Data is returned as one long array
+				# Need to split it up to get the individual images
+				num_images = self.gFKSeriesLength
+				image_length = len(data)/num_images
+				
+				# For each Fast Kinetics frame:
+				for i in range(num_images):
+					# Get the image and resize to the correct dimensions
+					image = np.resize(data[i*image_length : (i+1)*image_length], (dy, dx))
+					out.append(image)
 
-			return out
+				return out
 
 	# Save data array
 	def saveData(self, data_array):
@@ -615,25 +639,26 @@ class MainWindow(QtGui.QWidget):
 		elif ret != self.AndorCamera.DRV_IDLE:
 			self.throwErrorMessage("AbortAcquisition error!", "Error code: {}".format(ret))
 
-		# Next, close the internal shutter for safety
-		ret2 = self.AndorCamera.SetShutter(1, 2, 0, 0)
-		if ret2 == self.AndorCamera.DRV_SUCCESS:
-			self.appendToStatus("Internal shutter closed.\n")
-		else:
-			self.throwErrorMessage("SetShutter error!", "Error code: {}".format(ret2))
+		if not self.timed_out:
+			# Next, close the internal shutter for safety
+			ret2 = self.AndorCamera.SetShutter(1, 2, 0, 0)
+			if ret2 == self.AndorCamera.DRV_SUCCESS:
+				self.appendToStatus("Internal shutter closed.\n")
+			else:
+				self.throwErrorMessage("SetShutter error!", "Error code: {}".format(ret2))
 
-		# Next, kill the getData callback
-		try:
-			self.acquireCallback.cancel()
-		# This happens if abort button is hit before ever acquiring
-		except AttributeError:
-			self.throwErrorMessage("Abort: ", "Acquisition loop not started.")
-		# This happens if we try to abort when the acquisition is already over, or not started
-		except twisted.internet.error.AlreadyCalled:
-			self.throwErrorMessage("Abort: ", "Acquisition loop already completed.")
+			# Next, kill the getData callback
+			try:
+				self.acquireCallback.cancel()
+			# This happens if abort button is hit before ever acquiring
+			except AttributeError:
+				self.throwErrorMessage("Abort: ", "Acquisition loop not started.")
+			# This happens if we try to abort when the acquisition is already over, or not started
+			except twisted.internet.error.AlreadyCalled:
+				self.throwErrorMessage("Abort: ", "Acquisition loop already completed.")
 
-		# Enable acquire, disable abort buttons
-		self.acquireAbortStatus.abort()
+			# Enable acquire, disable abort buttons
+			self.acquireAbortStatus.abort()
 
 	# Populate the gui
 	def populate(self):
