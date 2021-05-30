@@ -599,11 +599,11 @@ class MainWindow(QtGui.QWidget):
 		# Define a temporary path to avoid conflicts when writing file
 		# Otherwise, fitting program autoloads the file before writing is complete
 		path_temp = path + "_temp"
-		if npz:
+		form = self.configForm.getFormData()
+		if form['saveNpz']:
 			path += ".npz"
 			path_temp += ".npz"
 
-			form = self.configForm.getFormData()
 			metadata = {
 				'camera': 'Andor iXon 888',
 				'images': form['acqLength'] * form['kinFrames'],
@@ -618,9 +618,8 @@ class MainWindow(QtGui.QWidget):
         	}
 
 
-			path = os.path.splitext(path)[0]+".npz"
-			with open(path, 'wb') as f:
-				np.savez_compressed(f, data=data_array.reshape(-1, form['dy'], form['dx']), meta=metadata)
+			with open(path_temp, 'wb') as f:
+				np.savez_compressed(f, data=data_array.reshape((-1, form['dy'], form['dx']//form['kinFrames'])), meta=metadata)
 
 			# Once file is written, rename to the correct filename
 			os.rename(path_temp, path)

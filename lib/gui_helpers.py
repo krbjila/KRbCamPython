@@ -70,7 +70,7 @@ class ConfigForm(QtGui.QWidget):
 		else:
 			self.rotateImageControl.setChecked(False)
 
-		if config.has_key('saveNpzControl'):
+		if config.has_key('saveNpz'):
 			self.saveNpzControl.setChecked(config['saveNpz'])
 		else:
 			self.saveNpzControl.setChecked(False)
@@ -340,6 +340,7 @@ class ConfigForm(QtGui.QWidget):
 		self.fileNumberEdit.setDisabled(acquiring)
 		self.saveEnableControl.setDisabled(acquiring)
 		self.rotateImageControl.setDisabled(acquiring)
+		self.saveNpzControl.setDisabled(acquiring)
 
 	def saveConfig(self):
 		fileName = QtGui.QFileDialog.getSaveFileName(self, "Save current configuration", PATH_TO_CONFIG, "JSON files (*.json)")
