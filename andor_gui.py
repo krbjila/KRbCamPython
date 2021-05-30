@@ -4,6 +4,7 @@ from twisted.internet.defer import inlineCallbacks
 import twisted.internet.error
 
 import time
+import os
 
 import numpy as np
 from copy import deepcopy
@@ -592,19 +593,45 @@ class MainWindow(QtGui.QWidget):
 			return out
 
 	# Save data array
-	def saveData(self, data_array):
+	def saveData(self, data_array, npz=False):
 		# The save path
 		path = self.gConfig['savePath'] + self.gConfig['filebase'] + '_' + str(self.gConfig['fileNumber'])
 		# Define a temporary path to avoid conflicts when writing file
 		# Otherwise, fitting program autoloads the file before writing is complete
 		path_temp = path + "_temp"
-		path += ".csv"
-		path_temp += ".csv"
+		if npz:
+			path += ".npz"
+			path_temp += ".npz"
 
-		np.savetxt(path_temp, data_array, fmt='%d', delimiter=',')
+			form = self.configForm.getFormData()
+			metadata = {
+				'camera': 'Andor iXon 888',
+				'images': form['acqLength'] * form['kinFrames'],
+				'interframing': 'on' if form['kinFrames'] > 1 else 'off',
+				'exposure': form['expTime'],
+				'bins': (2,2) if form['binning'] else (1,1),
+				'timestamp': time.strftime("%H:%M:%S", time.localtime()),
+				'em_enable': 'on' if form['emEnable'] > 1 else 'off',
+				'em_gain': form['emGain'],
+				'preamp_gain': form['preAmpGain'],
+				'vs_speed': form['vss']
+        	}
 
-		# Once file is written, rename to the correct filename
-		os.rename(path_temp, path)
+
+			path = os.path.splitext(path)[0]+".npz"
+			with open(path, 'wb') as f:
+				np.savez_compressed(f, data=data_array.reshape(-1, form['dy'], form['dx']), meta=metadata)
+
+			# Once file is written, rename to the correct filename
+			os.rename(path_temp, path)
+		else:
+			path += ".csv"
+			path_temp += ".csv"
+
+			np.savetxt(path_temp, data_array, fmt='%d', delimiter=',')
+
+			# Once file is written, rename to the correct filename
+			os.rename(path_temp, path)
 
 	# Abort an acquisition
 	def abortAcquisition(self):

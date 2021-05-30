@@ -70,6 +70,11 @@ class ConfigForm(QtGui.QWidget):
 		else:
 			self.rotateImageControl.setChecked(False)
 
+		if config.has_key('saveNpzControl'):
+			self.saveNpzControl.setChecked(config['saveNpz'])
+		else:
+			self.saveNpzControl.setChecked(False)
+
 		try:
 			self.saveFolderEdit.setText(config['saveFolder'])
 			self.fileBaseEdit.setText(config['filebase'])
@@ -132,9 +137,12 @@ class ConfigForm(QtGui.QWidget):
 			filelist = os.listdir(savedir)
 			for file in filelist:
 				# Extract the file number
-				# Files are saved as KRBCAM_FILENAME_BASE + filenumber + .csv
+				# Files are saved as KRBCAM_FILENAME_BASE + filenumber + .csv/.npz
 				ind1 = len(filebase)
-				ind2 = file.find('.csv')
+				if not self.saveNpzControl.isChecked():
+					ind2 = file.find('.csv')
+				else:
+					ind2 = file.find('.npz')
 				
 				# Compare file number, if it's bigger than set fileNumber to 1 greater than that
 				try:
@@ -246,6 +254,7 @@ class ConfigForm(QtGui.QWidget):
 			form['preAmpGain'] = self.preAmpGainControl.currentIndex()
 			form['saveFiles'] = bool(self.saveEnableControl.isChecked())
 			form['rotateImage'] = bool(self.rotateImageControl.isChecked())
+			form['saveNpz'] = bool(self.saveNpzControl.isChecked())
 			return form
 		except:
 			self.throwErrorMessage("Invalid form data!", "Try again.")
@@ -452,6 +461,9 @@ class ConfigForm(QtGui.QWidget):
 
 		self.rotateImageStatic = QtGui.QLabel("Rotate image?", self)
 		self.rotateImageControl = QtGui.QCheckBox(self)
+
+		self.saveNpzStatic = QtGui.QLabel("Save .npz?", self)
+		self.saveNpzControl = QtGui.QCheckBox(self)
 		
 		self.layout = QtGui.QGridLayout()
 
@@ -557,6 +569,10 @@ class ConfigForm(QtGui.QWidget):
 
 		self.layout.addWidget(self.rotateImageStatic, row, 0)
 		self.layout.addWidget(self.rotateImageControl, row, 1)
+
+		row += 1
+		self.layout.addWidget(self.saveNpzStatic, row, 0)
+		self.layout.addWidget(self.saveNpzControl, row, 1)
 
 		self.setLayout(self.layout)
 
