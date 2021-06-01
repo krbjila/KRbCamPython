@@ -1,5 +1,6 @@
 from PyQt4 import QtGui, QtCore, Qt
 from PyQt4.QtCore import pyqtSignal
+from numpy.core.fromnumeric import reshape
 from twisted.internet.defer import inlineCallbacks
 import twisted.internet.error
 
@@ -492,7 +493,7 @@ class MainWindow(QtGui.QWidget):
 				else:
 					newData = np.array(newData)
 
-				print np.shape(np.array(newData))
+				print(np.shape(np.array(newData)))
 
 				# Append it to the data array
 				if self.gAcqLoopCounter > 1:
@@ -596,30 +597,31 @@ class MainWindow(QtGui.QWidget):
 	def saveData(self, data_array, npz=False):
 		# The save path
 		path = self.gConfig['savePath'] + self.gConfig['filebase'] + '_' + str(self.gConfig['fileNumber'])
+
 		# Define a temporary path to avoid conflicts when writing file
 		# Otherwise, fitting program autoloads the file before writing is complete
 		path_temp = path + "_temp"
 		form = self.configForm.getFormData()
-		if form['saveNpz']:
+		if self.gConfig['saveNpz']:
 			path += ".npz"
 			path_temp += ".npz"
 
 			metadata = {
 				'camera': 'Andor iXon 888',
-				'images': form['acqLength'] * form['kinFrames'],
+				'images': self.gConfig['acqLength'] * self.gConfig['kinFrames'],
 				'interframing': 'on' if form['kinFrames'] > 1 else 'off',
-				'exposure': form['expTime'],
-				'bins': (2,2) if form['binning'] else (1,1),
+				'exposure': self.gConfig['expTime'],
+				'bins': (2,2) if self.gConfig['binning'] else (1,1),
 				'timestamp': time.strftime("%H:%M:%S", time.localtime()),
-				'em_enable': 'on' if form['emEnable'] > 1 else 'off',
-				'em_gain': form['emGain'],
-				'preamp_gain': form['preAmpGain'],
-				'vs_speed': form['vss']
+				'em_enable': 'on' if self.gConfig['emEnable'] > 1 else 'off',
+				'em_gain': self.gConfig['emGain'],
+				'preamp_gain': self.gConfig['preAmpGain'],
+				'vs_speed': self.gConfig['vss']
         	}
 
-
 			with open(path_temp, 'wb') as f:
-				np.savez_compressed(f, data=data_array.reshape((-1, form['dy'], form['dx']//form['kinFrames'])), meta=metadata)
+				reshaped = data_array.reshape((-1, self.gConfig['dx']//metadata['bins'][0], self.gConfig['dy']//metadata['bins'][0]))
+				np.savez_compressed(f, data=reshaped, meta=metadata)
 
 			# Once file is written, rename to the correct filename
 			os.rename(path_temp, path)
@@ -840,7 +842,7 @@ class MainWindow(QtGui.QWidget):
 		try:
 			self.reactor.stop()
 		except Exception as e:
-			print e
+			print(e)
 
 
 if __name__ == '__main__':
