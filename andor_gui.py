@@ -611,7 +611,7 @@ class MainWindow(QtGui.QWidget):
 				'images': self.gConfig['acqLength'] * self.gConfig['kinFrames'],
 				'interframing': 'on' if form['kinFrames'] > 1 else 'off',
 				'exposure': self.gConfig['expTime'],
-				'bins': (2,2) if self.gConfig['binning'] else (1,1),
+				'binning': (2,2) if self.gConfig['binning'] else (1,1),
 				'timestamp': time.strftime("%H:%M:%S", time.localtime()),
 				'em_enable': 'on' if self.gConfig['emEnable'] > 1 else 'off',
 				'em_gain': self.gConfig['emGain'],
@@ -620,7 +620,7 @@ class MainWindow(QtGui.QWidget):
         	}
 
 			with open(path_temp, 'wb') as f:
-				reshaped = data_array.reshape((-1, self.gConfig['dx']//metadata['bins'][0], self.gConfig['dy']//metadata['bins'][0]))
+				reshaped = data_array.reshape((-1, self.gConfig['dx']//metadata['binning'][0], self.gConfig['dy']//metadata['binning'][0]))
 				np.savez_compressed(f, data=reshaped, meta=metadata)
 
 			# Once file is written, rename to the correct filename
