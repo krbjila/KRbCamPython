@@ -376,6 +376,9 @@ class MainWindow(QtGui.QWidget):
 		
 	# Setup acquisition
 	def setupAcquisition(self, flagVerbose=True):
+		# Cancel timeout
+		self.cancelTimeout()
+
 		# armiXon sets the basic acquisition details
 		# e.g., acquisition mode, read mode, shutter mode, trigger mode, em gain mode
 		(errf, errm) = self.AndorCamera.armiXon()
@@ -449,9 +452,6 @@ class MainWindow(QtGui.QWidget):
 	# Tells the camera to start acquiring data
 	# Also sets up a deferred call to the checkForData method
 	def startAcquisition(self, data):
-		# Cancel the timeout for the acquisition
-		self.cancelTimeout()
-
 		# Start acquiring
 		ret = self.AndorCamera.StartAcquisition()
 		msg = self.AndorCamera.handleErrors(ret, "StartAcquisition error: ", "Acquiring...")
@@ -467,7 +467,9 @@ class MainWindow(QtGui.QWidget):
 	# data argument holds list of numpy arrays that contain the data collected so far in this acquisition
 	def timeoutAcquisition(self):
 		self.timedOut = True
-		self.appendToStatus("Timed out after acquiring {} of {} in series.\n".format(self.gAcqLoopCounter, self.gAcqLoopLength))
+		msg = "Timed out after acquiring {} of {} in series.\n".format(self.gAcqLoopCounter, self.gAcqLoopLength)
+		self.appendToStatus(msg)
+		print(msg)
 
 	# Cancel the timeout for the acquisition
 	def cancelTimeout(self):
@@ -495,43 +497,55 @@ class MainWindow(QtGui.QWidget):
 
 			# If idle, then data has been acquired
 			elif self.timedOut or status == self.AndorCamera.DRV_IDLE:
+			
+				# Increment OD series counter since we've taken an image
+				self.gAcqLoopCounter += 1
+
+				# Update status log
 				if not self.timedOut:
-					# Increment OD series counter since we've taken an image
-					self.gAcqLoopCounter += 1
-
-					# Update status log
 					self.appendToStatus("Acquired {} of {} in series.\n".format(self.gAcqLoopCounter, self.gAcqLoopLength))
-					
-					# Get the data off of the camera
+				
+				# Get the data off of the camera
+				if not self.timedOut:
 					newData = self.getData()
+				else:
+					newData = self.getEmptyData()
 
-					# If we need to rotate image
-					if self.gConfig['rotateImage']:
-						# The axes are kinetics frame, height, width
-						# Need to 
-					# Need to 
-						# Need to 
-						newData = np.flip(np.swapaxes(np.array(newData), 1, 2), axis=-1)
-					else:
-						newData = np.array(newData)
+				# If we need to rotate image
+				if self.gConfig['rotateImage']:
+					# The axes are kinetics frame, height, width
+					newData = np.flip(np.swapaxes(np.array(newData), 1, 2), axis=-1)
+				else:
+					newData = np.array(newData)
 
-					print(np.shape(np.array(newData)))
+				print(np.shape(np.array(newData)))
 
-					# Append it to the data array
-					if self.gAcqLoopCounter > 1:
-						for i in range(len(data)):
-							data[i] = np.concatenate((data[i], newData[i]))
-					else:
-						for i in range(len(newData)):
-							data.append(newData[i])
+				# Append it to the data array
+				if self.gAcqLoopCounter > 1:
+					for i in range(len(data)):
+						data[i] = np.concatenate((data[i], newData[i]))
+					# Add all remaining frames if timed out
+					if self.timedOut:
+						n_frames = 0
+						while self.gAcqLoopCounter < self.gAcqLoopLength:
+							for i in range(len(data)):
+								data[i] = np.concatenate((data[i], newData[i]))
+							self.gAcqLoopCounter += 1
+							n_frames += 1
+						self.appendToStatus("{} blank frames added.\n".format(n_frames + 1))
+				else:
+					for i in range(len(newData)):
+						data.append(newData[i])
 
 				# If need to take more in the OD series, acquire again
 				if self.gAcqLoopCounter < self.gAcqLoopLength and not self.timedOut:
 					# If the first shot has been acquired, start the timeout for the acquisition
 					if self.gAcqLoopCounter == 1:
-						self.cancelTimeout()
-						self.timeoutCallback = self.reactor.callLater(KRBCAM_ACQ_TIMER, self.timeoutAcquisition)
-
+						try:
+							if not self.timeoutCallback.active():
+								self.timeoutCallback = self.reactor.callLater(KRBCAM_ACQ_TIMEOUT, self.timeoutAcquisition)
+						except AttributeError:
+							self.timeoutCallback = self.reactor.callLater(KRBCAM_ACQ_TIMEOUT, self.timeoutAcquisition)
 					self.startAcquisition(data)
 				# Otherwise we are done acquiring!
 				else:
@@ -550,16 +564,8 @@ class MainWindow(QtGui.QWidget):
 	 						# Save all the data as one file
 	 						# So the data file will have e.g.
 	 						# K shadow, light, dark, Rb shadow, light, dark
-							# If there aren't enough frames, save more copies of the last frame and warn the user
-							missing_frames = 0
 							for j in range(1, self.gFKSeriesLength):
-								if len(data) > j:
-									savearray = np.concatenate((savearray, data[j]))
-								else:
-									missing_frames += 1
-									savearray = np.concatenate((savearray, data[-1]))
-							if missing_frames > 0:
-								self.appendToStatus("Missing {} frames!\n".format(missing_frames))
+								savearray = np.concatenate((savearray, data[j]))
 							self.saveData(savearray)
 							self.appendToStatus("Data saved.\n")
 						elif self.gAcqMode == KRBCAM_ACQ_MODE_SINGLE:
@@ -576,6 +582,10 @@ class MainWindow(QtGui.QWidget):
 					self.imageWindow.imageRotated(self.gConfig['rotateImage'])
 					self.imageWindow.setData(data, self.gFKSeriesLength, self.gAcqLoopLength)
 					self.imageWindow.displayData()
+
+					# Check timeout status and cancel callback
+					timedOut = self.timedOut
+					self.cancelTimeout()
 	
 					# if not looping:
 					if not self.gFlagLoop:
@@ -583,12 +593,10 @@ class MainWindow(QtGui.QWidget):
 						self.acquireAbortStatus.abort()
 					# if looping:
 					else:
-						# if timed out
-						if self.timedOut:
-							self.acquireAbortStatus.abort()
-							self.acquireAbortStatus.acquire()
-						else:
-							self.setupAcquisition(False)
+						# if timed out, abort and restart acquisition
+						if timedOut:
+							self.abortAcquisition(False)
+						self.setupAcquisition(False)
 
 			# Otherwise some error has occurred in the acquisition
 			else:
@@ -633,6 +641,35 @@ class MainWindow(QtGui.QWidget):
 
 			return out
 
+	# Get zeros, as if from camera
+	def getEmptyData(self):
+		# First need to get the total size of the image in binned pixels
+		dy = self.gConfig['dy']
+		dx = self.gConfig['dx']
+
+		if (self.gConfig['binning']):
+			dy /= KRBCAM_BIN_SIZE
+			dx /= KRBCAM_BIN_SIZE
+		dataLength = self.gFKSeriesLength * dy * dx
+
+		# Make a numpy array of zeros
+		data = np.zeros(dataLength, dtype=np.int32)
+
+		out = []
+
+		# Data is returned as one long array
+		# Need to split it up to get the individual images
+		num_images = self.gFKSeriesLength
+		image_length = len(data)/num_images
+		
+		# For each Fast Kinetics frame:
+		for i in range(num_images):
+			# Get the image and resize to the correct dimensions
+			image = np.resize(data[i*image_length : (i+1)*image_length], (dy, dx))
+			out.append(image)
+
+		return out
+
 	# Save data array
 	def saveData(self, data_array, npz=False):
 		# The save path
@@ -661,6 +698,7 @@ class MainWindow(QtGui.QWidget):
 
 			with open(path_temp, 'wb') as f:
 				reshaped = data_array.reshape((-1, self.gConfig['dx']//metadata['binning'][0], self.gConfig['dy']//metadata['binning'][0]))
+				print(reshaped.shape)
 				np.savez_compressed(f, data=reshaped, meta=metadata)
 
 			# Once file is written, rename to the correct filename
@@ -675,19 +713,19 @@ class MainWindow(QtGui.QWidget):
 			os.rename(path_temp, path)
 
 	# Abort an acquisition
-	def abortAcquisition(self):
+	def abortAcquisition(self, showErrors=True):
 		# First, stop camera acquisition
 		ret = self.AndorCamera.AbortAcquisition()
 		if ret == self.AndorCamera.DRV_SUCCESS:
 			self.appendToStatus("Camera acquisition aborted successfully.\n")
-		elif ret != self.AndorCamera.DRV_IDLE:
+		elif ret != self.AndorCamera.DRV_IDLE and showErrors:
 			self.throwErrorMessage("AbortAcquisition error!", "Error code: {}".format(ret))
 
 		# Next, close the internal shutter for safety
 		ret2 = self.AndorCamera.SetShutter(1, 2, 0, 0)
 		if ret2 == self.AndorCamera.DRV_SUCCESS:
 			self.appendToStatus("Internal shutter closed.\n")
-		else:
+		elif showErrors:
 			self.throwErrorMessage("SetShutter error!", "Error code: {}".format(ret2))
 
 		# Next, cancel the timeout for the acquisition
@@ -698,10 +736,12 @@ class MainWindow(QtGui.QWidget):
 			self.acquireCallback.cancel()
 		# This happens if abort button is hit before ever acquiring
 		except AttributeError:
-			self.throwErrorMessage("Abort: ", "Acquisition loop not started.")
+			if showErrors:
+				self.throwErrorMessage("Abort: ", "Acquisition loop not started.")
 		# This happens if we try to abort when the acquisition is already over, or not started
 		except twisted.internet.error.AlreadyCalled:
-			self.throwErrorMessage("Abort: ", "Acquisition loop already completed.")
+			if showErrors:
+				self.throwErrorMessage("Abort: ", "Acquisition loop already completed.")
 
 		# Enable acquire, disable abort buttons
 		self.acquireAbortStatus.abort()
