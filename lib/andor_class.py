@@ -64,7 +64,7 @@ class KRbiXon(atmcd.atmcd):
 		ret = self.ShutDown()
 		msg += self.handleErrors(ret, "ShutDown error: ", "SDK shut down successfully.\n")
 
-		print msg
+		print(msg)
 
 	# Initialize SDK, check camera capabilities, get basic info (stored in camInfo)
 	# Set fan mode for cooler

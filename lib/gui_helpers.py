@@ -961,7 +961,7 @@ class ImageWindow(QtGui.QWidget):
 			# AttributeError will occur if no data collected, since
 			# then self.data is undefined
 			except Exception as e:
-				print e
+				print(e)
 
 	def setData(self, data, kinFrames, acqLength):
 		self.controlComboBoxes(kinFrames, acqLength)
