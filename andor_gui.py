@@ -25,6 +25,13 @@ import qtreactor.pyqt4reactor
 qtreactor.pyqt4reactor.install()
 from twisted.internet import reactor
 
+try:
+	import labrad
+	sys.path.append("./client_tools")
+	from connection import connection
+except Exception as e:
+	print("Could not import LabRAD: {}".format(e))
+
 # Camera selection pop-up
 class CameraSelect(QtGui.QDialog):
 	def __init__(self, serials, realindex, parent=None):
@@ -98,6 +105,12 @@ class MainWindow(QtGui.QWidget):
 	# gFileNameBase = gConfig['filebase']
 	# gSaveFolder = gConfig['saveFolder']
 
+	@inlineCallbacks
+	def setupLabRAD(self):
+		self.cxn = connection()
+		yield self.cxn.connect()
+		self.alerter = yield self.cxn.get_server('polarkrb_alerter')
+
 	def __init__(self, reactor):
 		super(MainWindow, self).__init__(None)
 		self.reactor = reactor
@@ -106,6 +119,12 @@ class MainWindow(QtGui.QWidget):
 
 		self.timedOut = False
 
+		try:
+			self.setupLabRAD()
+		except Exception as e:
+			self.cxn = None
+			print("Could not connect to LabRAD : {}".format(e))
+			
 		# Get list of serial numbers of connected cameras
 		serials = self.initializeSDK()
 		if serials:
@@ -470,6 +489,10 @@ class MainWindow(QtGui.QWidget):
 		msg = "Timed out after acquiring {} of {} in series.\n".format(self.gAcqLoopCounter, self.gAcqLoopLength)
 		self.appendToStatus(msg)
 		print(msg)
+		try:
+			self.alerter.say("Oh no! The camera timed out!")
+		except Exception as e:
+			pass
 
 	# Cancel the timeout for the acquisition
 	def cancelTimeout(self):
