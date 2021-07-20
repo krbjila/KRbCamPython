@@ -509,27 +509,29 @@ class MainWindow(QtGui.QWidget):
 		(ret, status) = self.AndorCamera.GetStatus()
 		msg = self.AndorCamera.handleErrors(ret, "GetStatus error: ", "")
 
+		timedOut = self.timedOut
+
 		# if error, throw message, quit SDK
 		if ret != self.AndorCamera.DRV_SUCCESS:
 			self.throwErrorMessage("Error communicating with camera.", msg)
 		else:
 			# If still acquiring, run the timer again
-			if not self.timedOut and status == self.AndorCamera.DRV_ACQUIRING:
+			if not timedOut and status == self.AndorCamera.DRV_ACQUIRING:
 				# Check back for new data later
 				self.acquireCallback = self.reactor.callLater(KRBCAM_ACQ_TIMER, self.checkForData, data)
 
 			# If idle, then data has been acquired
-			elif self.timedOut or status == self.AndorCamera.DRV_IDLE:
+			elif timedOut or status == self.AndorCamera.DRV_IDLE:
 			
 				# Increment OD series counter since we've taken an image
 				self.gAcqLoopCounter += 1
 
 				# Update status log
-				if not self.timedOut:
+				if not timedOut:
 					self.appendToStatus("Acquired {} of {} in series.\n".format(self.gAcqLoopCounter, self.gAcqLoopLength))
 				
 				# Get the data off of the camera
-				if not self.timedOut:
+				if not timedOut:
 					newData = self.getData()
 				else:
 					newData = self.getEmptyData()
@@ -548,7 +550,7 @@ class MainWindow(QtGui.QWidget):
 					for i in range(len(data)):
 						data[i] = np.concatenate((data[i], newData[i]))
 					# Add all remaining frames if timed out
-					if self.timedOut:
+					if timedOut:
 						n_frames = 0
 						while self.gAcqLoopCounter < self.gAcqLoopLength:
 							for i in range(len(data)):
@@ -561,7 +563,7 @@ class MainWindow(QtGui.QWidget):
 						data.append(newData[i])
 
 				# If need to take more in the OD series, acquire again
-				if self.gAcqLoopCounter < self.gAcqLoopLength and not self.timedOut:
+				if self.gAcqLoopCounter < self.gAcqLoopLength and not timedOut:
 					# If the first shot has been acquired, start the timeout for the acquisition
 					if self.gAcqLoopCounter == 1:
 						try:
@@ -580,6 +582,7 @@ class MainWindow(QtGui.QWidget):
 					# If we're saving the files
 					if self.gConfig['saveFiles']:
 	 					# Save data
+						self.appendToStatus("Saving data...\n")
 	 					if self.gAcqMode == KRBCAM_ACQ_MODE_FK:
 
 	 						# This is an ugly way of doing this but oh well
@@ -607,7 +610,6 @@ class MainWindow(QtGui.QWidget):
 					self.imageWindow.displayData()
 
 					# Check timeout status and cancel callback
-					timedOut = self.timedOut
 					self.cancelTimeout()
 	
 					# if not looping:
