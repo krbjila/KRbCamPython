@@ -49,7 +49,7 @@ if KRBCAM_TRIGGER_MODE == 1:
 else:
 	KRBCAM_ACQ_TIMER = 0.3				# 0.3 s for internal trigger acquisition loop
 KRBCAM_LOOP_ACQ = True					# Loop acquisition?
-KRBCAM_ACQ_TIMEOUT = 15 				# seconds
+KRBCAM_ACQ_TIMEOUT = 20					# seconds
 
 # KRBCAM_FILENAME_BASE_IMAGE = 'ixon_img_'
 # KRBCAM_FILENAME_BASE_FK = 'ixon_'
