@@ -10,6 +10,14 @@ with open('./lib/serials.json') as f:
 	from json import load
 	KRBCAM_SERIALS = load(f)
 
+#########################
+## Database connection ##
+#########################
+
+with open('./lib/mongodb.json') as f:
+	from json import load
+	MONGODB_CONFIG = load(f)
+
 #########################################################################################
 ############# Don't change stuff below this line unless you mean it! ####################
 #########################################################################################
@@ -109,6 +117,7 @@ if not default_config.has_key('saveFolder'):
 # 	'hss': 0,
 # 	'binning': True,
 # 	'saveFiles': True
+# 	'saveDatabase': True
 # }
 
 KRBCAM_AUTOSCALE_PERCENTILES = [0.2, 99.8]

@@ -32,6 +32,8 @@ try:
 except Exception as e:
 	print("Could not import LabRAD: {}".format(e))
 
+from pymongo import MongoClient
+
 # Camera selection pop-up
 class CameraSelect(QtGui.QDialog):
 	def __init__(self, serials, realindex, parent=None):
@@ -110,6 +112,34 @@ class MainWindow(QtGui.QWidget):
 		self.cxn = connection()
 		yield self.cxn.connect()
 		self.alerter = yield self.cxn.get_server('polarkrb_alerter')
+		self.logging = yield self.cxn.get_server('imaging_logging')
+
+		client_id = 271828
+		yield self.logging.signal__shot_updated(client_id)
+		yield self.logging.addListener(listener=self.setShotNumber, source=None, id=client_id)
+
+	def setupDatabase(self):
+		mongo_url = "mongodb://{}:{}@{}:{}/authSource=admin".format(MONGODB_CONFIG["user"], MONGODB_CONFIG["password"], MONGODB_CONFIG["address"], MONGODB_CONFIG["port"])
+		client = MongoClient(mongo_url)
+		self.db = client.data
+		self.col = client.data["shots"]
+
+	def setShotNumber(self, context, shot):
+		"""
+		setShotNumber(self, context, shot)
+
+		Sets the shot number, to be saved as metadata with the image. The function is called when ``imaging.logging``'s  ``shot_updated`` signal is run. 
+
+		Args:
+			context: LabRAD context
+			shot (int): The current shot number
+		"""
+		if shot != -1 and shot is not None:
+			self.shot = shot
+			self.configForm.shotEdit.setValue(int(shot))
+		else:
+			self.shot = None
+			self.configForm.shotEdit.setValue("None")
 
 	def __init__(self, reactor):
 		super(MainWindow, self).__init__(None)
@@ -118,12 +148,20 @@ class MainWindow(QtGui.QWidget):
 		self.populate()
 
 		self.timedOut = False
+		self.shot = None
+		self.shot_to_save = None
 
 		try:
 			self.setupLabRAD()
 		except Exception as e:
 			self.cxn = None
-			print("Could not connect to LabRAD : {}".format(e))
+			self.throwErrorMessage("Could not connect to LabRAD.", "Error code: {}".format(e))
+
+		try:
+			self.setupDatabase()
+		except Exception as e:
+			self.db = None
+			self.throwErrorMessage("Could not connect to MongoDB.", "Error code: {}".format(e))
 			
 		# Get list of serial numbers of connected cameras
 		serials = self.initializeSDK()
@@ -481,6 +519,16 @@ class MainWindow(QtGui.QWidget):
 			# Set a timer for looking for the data
 			self.appendToStatus("Acquiring...\n")
 			self.acquireCallback = self.reactor.callLater(KRBCAM_ACQ_TIMER, self.checkForData, data)
+			# Make sure that we're still connected to LabRAD.
+			try:
+				self.logging.get_shot()
+			except Exception as e:
+				try:
+					self.setupLabRAD()
+					self.logging.get_shot()
+				except Exception as e2:
+					self.appendToStatus("Could not connect to LabRAD to get shot number!\n")
+					self.setShotNumber(None, None)
 
 	# Method that fires after the KRBCAM_ACQ_TIMEOUT time has elapsed after the first frame is acquired
 	# data argument holds list of numpy arrays that contain the data collected so far in this acquisition
@@ -492,7 +540,11 @@ class MainWindow(QtGui.QWidget):
 		try:
 			self.alerter.say("Oh no! The camera timed out!")
 		except Exception as e:
-			pass
+			try:
+				self.setupLabRAD()
+				self.alerter.say("Oh no! The camera timed out!")
+			except Exception as e2:
+				print("Oh no! The camera timed out, but I couldn't connect to LabRAD to warn the people: {e}".format(e2))
 
 	# Cancel the timeout for the acquisition
 	def cancelTimeout(self):
@@ -564,8 +616,9 @@ class MainWindow(QtGui.QWidget):
 
 				# If need to take more in the OD series, acquire again
 				if self.gAcqLoopCounter < self.gAcqLoopLength and not timedOut:
-					# If the first shot has been acquired, start the timeout for the acquisition
+					# If the first shot has been acquired, start the timeout for the acquisition. Also record the shot number to be associated with the shot.
 					if self.gAcqLoopCounter == 1:
+						self.shot_to_save = self.shot
 						try:
 							if not self.timeoutCallback.active():
 								self.timeoutCallback = self.reactor.callLater(KRBCAM_ACQ_TIMEOUT, self.timeoutAcquisition)
@@ -580,7 +633,7 @@ class MainWindow(QtGui.QWidget):
 					self.gConfig = self.configForm.getFormData()
 
 					# If we're saving the files
-					if self.gConfig['saveFiles']:
+					if self.gConfig['saveFiles'] or self.gConfig['saveDatabase']:
 	 					# Save data
 						self.appendToStatus("Saving data...\n")
 	 					if self.gAcqMode == KRBCAM_ACQ_MODE_FK:
@@ -592,10 +645,11 @@ class MainWindow(QtGui.QWidget):
 	 						# K shadow, light, dark, Rb shadow, light, dark
 							for j in range(1, self.gFKSeriesLength):
 								savearray = np.concatenate((savearray, data[j]))
-							self.saveData(savearray)
+							self.saveData(savearray, save=self.gConfig['saveFiles'], database=self.gConfig['saveDatabase'])
 							self.appendToStatus("Data saved.\n")
 						elif self.gAcqMode == KRBCAM_ACQ_MODE_SINGLE:
-							self.saveData(data[0])
+							# TODO: cancel the saving if it takes too long. See https://stackoverflow.com/questions/492519/timeout-on-a-function-call
+							self.saveData(data[0], save=self.gConfig['saveFiles'], database=self.gConfig['saveDatabase'])
 							self.appendToStatus("Data saved.\n")
 					else:
 						self.appendToStatus("Data saving is turned off.\n")
@@ -696,7 +750,7 @@ class MainWindow(QtGui.QWidget):
 		return out
 
 	# Save data array
-	def saveData(self, data_array, npz=False):
+	def saveData(self, data_array, npz=False, save=True, database=False):
 		# The save path
 		path = self.gConfig['savePath'] + self.gConfig['filebase'] + '_' + str(self.gConfig['fileNumber'])
 
@@ -704,31 +758,58 @@ class MainWindow(QtGui.QWidget):
 		# Otherwise, fitting program autoloads the file before writing is complete
 		path_temp = path + "_temp"
 		form = self.configForm.getFormData()
-		if self.gConfig['saveNpz']:
+
+		metadata = {
+			'camera': 'Andor iXon 888',
+			'name': form['cameraName'],
+			'images': form['acqLength'] * form['kinFrames'],
+			'interframing': 'on' if form['kinFrames'] > 1 else 'off',
+			'exposure': form['expTime'],
+			'binning': (2,2) if form['binning'] else (1,1),
+			'timestamp': time.strftime("%H:%M:%S", time.localtime()),
+			'em_enable': 'on' if form['emEnable'] > 1 else 'off',
+			'em_gain': form['emGain'],
+			'preamp_gain': form['preAmpGain'],
+			'vs_speed': form['vss'],
+			'shot': self.shot_to_save if self.shot_to_save is not None else -1
+		}
+
+		if database:
+			if self.shot_to_save is None:
+				self.appendToStatus("Could not save to database! Shot number is not set.\n")
+			else:
+				if self.db is None:
+					try:
+						self.setupDatabase()
+					except Exception as e:
+						self.appendToStatus("Could not connect to database!\n")
+						self.db = None
+				if self.db is not None:
+					id = time.strftime("%Y_%m_%d_{}").format(self.shot_to_save)
+					update = {
+						"images": {
+							metadata["name"]: {
+								"metadata": metadata
+								}
+						}
+					}
+					try:
+						self.col.update_one({'_id': id}, update, upsert=True)
+					except Exception as e:
+						self.appendToStatus("Could not update database!\n")
+
+		if save and form['saveNpz']:
 			path += ".npz"
 			path_temp += ".npz"
 
-			metadata = {
-				'camera': 'Andor iXon 888',
-				'images': self.gConfig['acqLength'] * self.gConfig['kinFrames'],
-				'interframing': 'on' if form['kinFrames'] > 1 else 'off',
-				'exposure': self.gConfig['expTime'],
-				'binning': (2,2) if self.gConfig['binning'] else (1,1),
-				'timestamp': time.strftime("%H:%M:%S", time.localtime()),
-				'em_enable': 'on' if self.gConfig['emEnable'] > 1 else 'off',
-				'em_gain': self.gConfig['emGain'],
-				'preamp_gain': self.gConfig['preAmpGain'],
-				'vs_speed': self.gConfig['vss']
-        	}
-
 			with open(path_temp, 'wb') as f:
-				reshaped = data_array.reshape((-1, self.gConfig['dx']//metadata['binning'][0], self.gConfig['dy']//metadata['binning'][0]))
+				reshaped = data_array.reshape((-1, form['dx']//metadata['binning'][0], form['dy']//metadata['binning'][0]))
 				print(reshaped.shape)
 				np.savez_compressed(f, data=reshaped, meta=metadata)
 
 			# Once file is written, rename to the correct filename
 			os.rename(path_temp, path)
-		else:
+		elif save:
 			path += ".csv"
 			path_temp += ".csv"
 

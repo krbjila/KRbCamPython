@@ -65,6 +65,13 @@ class ConfigForm(QtGui.QWidget):
 		self.saveEnableControl.setChecked(config['saveFiles'])
 		self.saveControlToggle()
 
+		if config.has_key('saveDatabase'):
+			self.dbEnableControl.setChecked(config['saveDatabase'])
+		else:
+			self.dbEnableControl.setChecked(True)
+		self.dbControlToggle()
+		
+
 		if config.has_key('rotateImage'):
 			self.rotateImageControl.setChecked(config['rotateImage'])
 		else:
@@ -234,6 +241,7 @@ class ConfigForm(QtGui.QWidget):
 		self.checkDir()
 		try:
 			form = {}
+			form['cameraName'] = str(self.cameraNameStatic.text())
 			form['kinFrames'] = int(self.kineticsFramesEdit.value())
 			form['acqLength'] = int(self.acqLengthEdit.value())
 			form['expTime'] = float(self.exposureEdit.text())
@@ -253,6 +261,7 @@ class ConfigForm(QtGui.QWidget):
 			form['hss'] = self.hssControl.currentIndex()
 			form['preAmpGain'] = self.preAmpGainControl.currentIndex()
 			form['saveFiles'] = bool(self.saveEnableControl.isChecked())
+			form['saveDatabase'] = bool(self.dbEnableControl.isChecked())
 			form['rotateImage'] = bool(self.rotateImageControl.isChecked())
 			form['saveNpz'] = bool(self.saveNpzControl.isChecked())
 			return form
@@ -316,6 +325,13 @@ class ConfigForm(QtGui.QWidget):
 			self.savePathEdit.setDisabled(True)
 			self.fileNumberEdit.setDisabled(True)
 
+	# Save database control toggle
+	def dbControlToggle(self):
+		if self.dbEnableControl.isChecked():
+			pass
+		else:
+			pass
+
 	# Freeze the form when acquisition is in progress
 	def freezeForm(self, acquiring):
 		# self.acquireEdit.setDisabled(acquiring)
@@ -339,6 +355,7 @@ class ConfigForm(QtGui.QWidget):
 		self.fileBaseEdit.setDisabled(acquiring)
 		self.fileNumberEdit.setDisabled(acquiring)
 		self.saveEnableControl.setDisabled(acquiring)
+		self.dbEnableControl.setDisabled(acquiring)
 		self.rotateImageControl.setDisabled(acquiring)
 		self.saveNpzControl.setDisabled(acquiring)
 
@@ -460,6 +477,15 @@ class ConfigForm(QtGui.QWidget):
 		self.saveEnableControl = QtGui.QCheckBox(self)
 		self.saveEnableControl.stateChanged.connect(self.saveControlToggle)
 
+		self.dbEnableStatic = QtGui.QLabel("Save to database?", self)
+		self.dbEnableControl = QtGui.QCheckBox(self)
+		self.dbEnableControl.stateChanged.connect(self.dbControlToggle)
+
+		self.shotStatic = QtGui.QLabel("Shot:", self)
+		self.shotEdit = QtGui.QLineEdit(self)
+		self.shotEdit.setText("None")
+		self.shotEdit.setDisabled(True)
+
 		self.rotateImageStatic = QtGui.QLabel("Rotate image?", self)
 		self.rotateImageControl = QtGui.QCheckBox(self)
 
@@ -566,6 +592,14 @@ class ConfigForm(QtGui.QWidget):
 
 		self.layout.addWidget(self.saveEnableStatic, row, 0)
 		self.layout.addWidget(self.saveEnableControl, row, 1)
+		row += 1
+
+		self.layout.addWidget(self.dbEnableStatic, row, 0)
+		self.layout.addWidget(self.dbEnableControl, row, 1)
+		row += 1
+
+		self.layout.addWidget(self.shotStatic, row, 0)
+		self.layout.addWidget(self.shotEdit, row, 1)
 		row += 1
 
 		self.layout.addWidget(self.rotateImageStatic, row, 0)
