@@ -119,9 +119,16 @@ class MainWindow(QtGui.QWidget):
 
     def setupDatabase(self):
         mongo_url = "mongodb://{}:{}@{}:{}/?authSource=admin".format(MONGODB_CONFIG["user"], MONGODB_CONFIG["password"], MONGODB_CONFIG["address"], MONGODB_CONFIG["port"])
-        client = MongoClient(mongo_url)
-        self.db = client.data
-        self.col = client.data["shots"]
+        client = MongoClient(mongo_url, connectTimeoutMS=2000)
+        try:
+            client.server_info()
+            self.db = client.data
+            self.col = client.data["shots"]
+        except Exception as e:
+            self.db = None
+            self.col = None
+            self.appendToStatus("Could not connect to MongoDB.\n")
+            print("Could not connect to MongoDB: {}".format(e))
 
     def setShotNumber(self, context, shot):
         """
@@ -156,12 +163,8 @@ class MainWindow(QtGui.QWidget):
             self.cxn = None
             self.throwErrorMessage("Could not connect to LabRAD.", "Error code: {}".format(e))
 
-        try:
-            self.setupDatabase()
-        except Exception as e:
-            self.db = None
-            self.throwErrorMessage("Could not connect to MongoDB.", "Error code: {}".format(e))
-            
+        self.setupDatabase()
+
         # Get list of serial numbers of connected cameras
         serials = self.initializeSDK()
         if serials:
@@ -784,11 +787,7 @@ class MainWindow(QtGui.QWidget):
                 self.appendToStatus("Could not save to database! Shot number is not set.\n")
             else:
                 if self.db is None:
-                    try:
-                        self.setupDatabase()
-                    except Exception as e:
-                        self.appendToStatus("Could not connect to database!\n")
-                        self.db = None
+                    self.setupDatabase()
                 if self.db is not None:
                     update = {
                         "$set": {
@@ -806,6 +805,7 @@ class MainWindow(QtGui.QWidget):
                         self.col.update_one({'_id': id}, update, upsert=True)
                     except Exception as e:
                         self.appendToStatus("Could not update database!\n")
+                        print("Could not update database: {}".format(e))
 
         if save and form['saveNpz']:
             path += ".npz"
