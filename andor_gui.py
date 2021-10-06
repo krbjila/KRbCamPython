@@ -771,7 +771,8 @@ class MainWindow(QtGui.QWidget):
 			'em_gain': form['emGain'],
 			'preamp_gain': form['preAmpGain'],
 			'vs_speed': form['vss'],
-			'shot': self.shot_to_save if self.shot_to_save is not None else -1
+			'shot': self.shot_to_save if self.shot_to_save is not None else -1,
+			'path': path + (".npz" if form['saveNpz'] else ".csv")
 		}
 
 		if database:
