@@ -118,7 +118,7 @@ class MainWindow(QtGui.QWidget):
         yield self.logging.addListener(listener=self.setShotNumber, source=None, id=client_id)
 
     def setupDatabase(self):
-        mongo_url = "mongodb://{}:{}@{}:{}/authSource=admin".format(MONGODB_CONFIG["user"], MONGODB_CONFIG["password"], MONGODB_CONFIG["address"], MONGODB_CONFIG["port"])
+        mongo_url = "mongodb://{}:{}@{}:{}/?authSource=admin".format(MONGODB_CONFIG["user"], MONGODB_CONFIG["password"], MONGODB_CONFIG["address"], MONGODB_CONFIG["port"])
         client = MongoClient(mongo_url)
         self.db = client.data
         self.col = client.data["shots"]
