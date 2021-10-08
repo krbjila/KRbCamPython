@@ -1,7 +1,8 @@
 from PyQt4 import QtGui, QtCore, Qt
 from PyQt4.QtCore import pyqtSignal
+from labrad import connect
 from numpy.core.fromnumeric import reshape
-from twisted.internet.defer import inlineCallbacks
+from twisted.internet.defer import Deferred, inlineCallbacks
 import twisted.internet.error
 
 import time
@@ -12,6 +13,8 @@ import numpy as np
 from copy import deepcopy
 
 import json
+from bson.json_util import dumps as bsondumps
+from bson.json_util import loads as bsonloads
 
 import sys
 # sys.path.append("./lib/")
@@ -112,23 +115,19 @@ class MainWindow(QtGui.QWidget):
         yield self.cxn.connect()
         self.alerter = yield self.cxn.get_server('polarkrb_alerter')
         self.logging = yield self.cxn.get_server('imaging_logging')
+        self.database = yield self.cxn.get_server('database')
 
         client_id = 271828
         yield self.logging.signal__shot_updated(client_id)
         yield self.logging.addListener(listener=self.setShotNumber, source=None, id=client_id)
 
+        yield self.setupDatabase()
+
+    @inlineCallbacks
     def setupDatabase(self):
-        mongo_url = "mongodb://{}:{}@{}:{}/?authSource=admin".format(MONGODB_CONFIG["user"], MONGODB_CONFIG["password"], MONGODB_CONFIG["address"], MONGODB_CONFIG["port"])
-        client = MongoClient(mongo_url, connectTimeoutMS=2000)
-        try:
-            client.server_info()
-            self.db = client.data
-            self.col = client.data["shots"]
-        except Exception as e:
-            self.db = None
-            self.col = None
+        status = yield self.database.connect(database="data", collection="shots")
+        if status == "{}":
             self.appendToStatus("Could not connect to MongoDB.\n")
-            print("Could not connect to MongoDB: {}".format(e))
 
     def setShotNumber(self, context, shot):
         """
@@ -142,7 +141,7 @@ class MainWindow(QtGui.QWidget):
         """
         if shot != -1 and shot is not None:
             self.shot = shot
-            self.configForm.shotEdit.setValue(int(shot))
+            self.configForm.shotEdit.setValue(str(shot))
         else:
             self.shot = None
             self.configForm.shotEdit.setValue("None")
@@ -162,8 +161,6 @@ class MainWindow(QtGui.QWidget):
         except Exception as e:
             self.cxn = None
             self.throwErrorMessage("Could not connect to LabRAD.", "Error code: {}".format(e))
-
-        self.setupDatabase()
 
         # Get list of serial numbers of connected cameras
         serials = self.initializeSDK()
@@ -564,6 +561,11 @@ class MainWindow(QtGui.QWidget):
 
         timedOut = self.timedOut
 
+        # Keep updating our shot number, unless we are in the middle of getting images
+        # TODO: Fix behavior if only 1 exposure is taken at very end of expt sequence
+        if self.gAcqLoopCounter == 0 and self.shot != -1:
+            self.shot_to_save = self.shot
+
         # if error, throw message, quit SDK
         if ret != self.AndorCamera.DRV_SUCCESS:
             self.throwErrorMessage("Error communicating with camera.", msg)
@@ -619,7 +621,6 @@ class MainWindow(QtGui.QWidget):
                 if self.gAcqLoopCounter < self.gAcqLoopLength and not timedOut:
                     # If the first shot has been acquired, start the timeout for the acquisition. Also record the shot number to be associated with the shot.
                     if self.gAcqLoopCounter == 1:
-                        self.shot_to_save = self.shot
                         try:
                             if not self.timeoutCallback.active():
                                 self.timeoutCallback = self.reactor.callLater(KRBCAM_ACQ_TIMEOUT, self.timeoutAcquisition)
@@ -751,6 +752,7 @@ class MainWindow(QtGui.QWidget):
         return out
 
     # Save data array
+    @inlineCallbacks
     def saveData(self, data_array, npz=False, save=True, database=False):
         # The save path
         path = self.gConfig['savePath'] + self.gConfig['filebase'] + '_' + str(self.gConfig['fileNumber'])
@@ -765,14 +767,20 @@ class MainWindow(QtGui.QWidget):
         else:
             id = None
 
+        now = datetime.now()
         metadata = {
             'camera': 'Andor iXon 888',
-            'name': form['cameraName'],
+            'name': form['cameraName'].split(": ")[-1],
+            'serial': form['cameraName'].split(":")[0],
             'images': form['acqLength'] * form['kinFrames'],
-            'interframing': 'on' if form['kinFrames'] > 1 else 'off',
+            'width': form['dx'],
+            'height': form['dy'],
+            'x_offset': form['xOffset'],
+            'y_offset': form['yOffset'],
+            'kinetics_frames': form['kinFrames'],
             'exposure': form['expTime'],
             'binning': (2,2) if form['binning'] else (1,1),
-            'timestamp': time.strftime("%H:%M:%S", time.localtime()),
+            'timestamp': now,
             'em_enable': 'on' if form['emEnable'] > 1 else 'off',
             'em_gain': form['emGain'],
             'preamp_gain': form['preAmpGain'],
@@ -783,26 +791,37 @@ class MainWindow(QtGui.QWidget):
         }
 
         if database:
-            if self.shot_to_save is None:
+            if self.shot_to_save is None or self.shot_to_save == -1:
                 self.appendToStatus("Could not save to database! Shot number is not set.\n")
             else:
-                if self.db is None:
-                    self.setupDatabase()
-                if self.db is not None:
-                    update = {
-                        "$set": {
-                            "images": {
-                                metadata["name"]: {
-                                    "metadata": metadata
-                                }
+                update = {
+                    "$set": {
+                        "images": {
+                            metadata["name"]: {
+                                "metadata": metadata
                             }
-                        },
-                        "$setOnInsert": {
-                            "time": datetime.now()
                         }
+                    },
+                    "$setOnInsert": {
+                        "time": now
                     }
+                }
+                try:
+                    # TODO: See if this actually works...
+                    s = yield self.database.update_one(bsondumps({'_id': id}), bsondumps(update), upsert=True)
+                    
+                    if s == "{}" or not bsonloads(s)["acknowledged"]:
+                        raise Exception("Database update failed.")
+
+                except Exception as e:
+                    # Try to re-setup labrad connection
+                    yield self.setupLabRAD()
+                    
                     try:
-                        self.col.update_one({'_id': id}, update, upsert=True)
+                        s = yield self.database.update_one(bsondumps({'_id': id}), bsondumps(update), upsert=True)
+                        if s == "{}" or not bsonloads(s)["acknowledged"]:
+                            raise Exception("Database update failed.")
+
                     except Exception as e:
                         self.appendToStatus("Could not update database!\n")
                         print("Could not update database: {}".format(e))
@@ -814,6 +833,8 @@ class MainWindow(QtGui.QWidget):
             with open(path_temp, 'wb') as f:
                 reshaped = data_array.reshape((-1, form['dx']//metadata['binning'][0], form['dy']//metadata['binning'][0]))
                 print(reshaped.shape)
+
+                metadata['timestamp'] = now.strftime("%Y-%m-%d %H:%M:%S")
                 np.savez_compressed(f, data=reshaped, meta=metadata)
 
             # Once file is written, rename to the correct filename
