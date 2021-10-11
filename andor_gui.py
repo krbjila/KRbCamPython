@@ -895,8 +895,8 @@ class MainWindow(QtGui.QWidget):
 
         self.layout.addWidget(self.configForm, 0, 0)
         self.layout.addWidget(self.acquireAbortStatus, 1, 0)
-        self.layout.addWidget(self.coolerControl, 2, 0)
         self.layout.addWidget(self.imageWindow, 0, 1)
+        self.layout.addWidget(self.coolerControl, 1, 1)
         
         self.setLayout(self.layout)
 

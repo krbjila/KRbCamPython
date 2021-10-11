@@ -21,8 +21,8 @@ from andor_helpers import *
 from krb_custom_colors import KRbCustomColors
 
 layout_params = {
-	'main': [1000, 975],
-	'image': [700, 700],
+	'main': [1000-250, 975],
+	'image': [700-250, 700],
 	'figure': [6, 6]
 }
 
@@ -716,25 +716,30 @@ class CoolerControl(QtGui.QWidget):
 		self.coolerStatusEdit = QtGui.QLineEdit(self)
 		self.coolerStatusEdit.setDisabled(True)
 		self.coolerStatusEdit.setStyleSheet("color: rgb(0,0,0);")
+		self.coolerStatusEdit.setFixedWidth(150)
 
 		self.ccdTempRangeStatic = QtGui.QLabel("Temp. Range (C):", self)
 		self.ccdTempRangeEdit = QtGui.QLineEdit(self)
 		self.ccdTempRangeEdit.setDisabled(True)
 		self.ccdTempRangeEdit.setStyleSheet("color: rgb(0,0,0);")
+		self.ccdTempRangeEdit.setFixedWidth(150)
 
 		self.ccdSetTempStatic = QtGui.QLabel("Set Temp. (C):", self)
 		self.ccdSetTempEdit = QtGui.QLineEdit(self)
+		self.ccdSetTempEdit.setFixedWidth(150)
 
 		self.ccdCurrentTempStatic = QtGui.QLabel("CCD Temp. (C):", self)
 		self.ccdCurrentTempEdit = QtGui.QLineEdit(self)
 		self.ccdCurrentTempEdit.setDisabled(True)
 		self.ccdCurrentTempEdit.setStyleSheet("color: rgb(0,0,0);")
+		self.ccdCurrentTempEdit.setFixedWidth(150)
 
 		self.layout = QtGui.QGridLayout()
 
 		self.layout.addWidget(self.buttonGroupLabel, 0, 0)
 		self.layout.addWidget(self.coolerOnControl, 1, 0)
 		self.layout.addWidget(self.coolerOffControl, 1, 1)
+		self.layout.addItem(QtGui.QSpacerItem(1, 1, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum), 1, 2)
 		self.layout.addWidget(self.coolerStatusStatic, 2, 0)
 		self.layout.addWidget(self.coolerStatusEdit, 2, 1)
 		self.layout.addWidget(self.ccdTempRangeStatic, 3, 0)
