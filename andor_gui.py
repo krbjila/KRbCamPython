@@ -1,12 +1,12 @@
 from PyQt4 import QtGui, QtCore, Qt
 from PyQt4.QtCore import pyqtSignal
-from labrad import connect
+# from labrad import connect
 from numpy.core.fromnumeric import reshape
 from twisted.internet.defer import Deferred, inlineCallbacks
 import twisted.internet.error
 
 import time
-from datetime import datetime
+import datetime
 import os
 
 import numpy as np
@@ -17,7 +17,7 @@ from bson.json_util import dumps as bsondumps
 from bson.json_util import loads as bsonloads
 
 import sys
-# sys.path.append("./lib/")
+sys.path.append("./lib/")
 sys.path.append("./lib/sdk2/")
 
 # Our helper files
@@ -118,15 +118,18 @@ class MainWindow(QtGui.QWidget):
 
         client_id = 271828
         yield self.logging.signal__shot_updated(client_id)
-        yield self.logging.addListener(listener=self.setShotNumber, source=None, id=client_id)
+        yield self.logging.addListener(listener=self.setShotNumber, source=None, ID=client_id)
 
         yield self.setupDatabase()
 
     @inlineCallbacks
     def setupDatabase(self):
-        status = yield self.database.connect(database="data", collection="shots")
+        status = yield self.database.connect()
         if status == "{}":
             self.appendToStatus("Could not connect to MongoDB.\n")
+        else:
+            self.database.set_database("data")
+            self.database.set_collection("shots")
 
     def setShotNumber(self, context, shot):
         """
@@ -140,7 +143,7 @@ class MainWindow(QtGui.QWidget):
         """
         if shot != -1 and shot is not None:
             self.shot = shot
-            self.configForm.shotEdit.setValue(str(shot))
+            self.configForm.shotEdit.setText(str(shot))
         else:
             self.shot = None
             self.configForm.shotEdit.setText("None")
@@ -767,7 +770,7 @@ class MainWindow(QtGui.QWidget):
         else:
             id = None
 
-        now = datetime.now()
+        now = datetime.datetime.now()
         metadata = {
             'camera': 'Andor iXon 888',
             'name': form['cameraName'].split(": ")[-1],
@@ -808,7 +811,7 @@ class MainWindow(QtGui.QWidget):
                 }
                 try:
                     # TODO: See if this actually works...
-                    s = yield self.database.update_one(bsondumps({'_id': id}), bsondumps(update), upsert=True)
+                    s = yield self.database.update_one(bsondumps({'_id': id}), bsondumps(update))
                     
                     if s == "{}" or not bsonloads(s)["acknowledged"]:
                         raise Exception("Database update failed.")
@@ -818,7 +821,7 @@ class MainWindow(QtGui.QWidget):
                     yield self.setupLabRAD()
                     
                     try:
-                        s = yield self.database.update_one(bsondumps({'_id': id}), bsondumps(update), upsert=True)
+                        s = yield self.database.update_one(bsondumps({'_id': id}), bsondumps(update))
                         if s == "{}" or not bsonloads(s)["acknowledged"]:
                             raise Exception("Database update failed.")
 

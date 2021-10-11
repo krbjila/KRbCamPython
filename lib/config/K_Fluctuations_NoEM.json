@@ -1,0 +1,18 @@
+{
+    "acqLength": 1, 
+    "adChannel": 0, 
+    "binning": false, 
+    "dx": 1024, 
+    "dy": 250, 
+    "emEnable": false, 
+    "emGain": 0, 
+    "expTime": 0.01, 
+    "hss": 0, 
+    "kinFrames": 4, 
+    "preAmpGain": 0, 
+    "saveFiles": true, 
+    "vss": 1, 
+    "xOffset": 0, 
+    "yOffset": 0,
+    "saveNpz": true
+}

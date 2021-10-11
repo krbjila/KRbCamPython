@@ -1,0 +1,51 @@
+{
+    "acqLength": 2, 
+    "adChannel": 0, 
+    "binning": false, 
+    "dx": 1024, 
+    "dy": 256, 
+    "emEnable": false, 
+    "emGain": 0, 
+    "expTime": 0.01, 
+    "filebase": "ixon", 
+    "fss": [
+        [
+            [
+                0, 
+                0
+            ], 
+            [
+                1, 
+                0
+            ], 
+            [
+                0, 
+                0
+            ]
+        ], 
+        [
+            [
+                0, 
+                0
+            ], 
+            [
+                1, 
+                0
+            ], 
+            [
+                2, 
+                0
+            ]
+        ]
+    ], 
+    "hss": 0, 
+    "kinFrames": 4, 
+    "preAmpGain": 0, 
+    "rotateImage": true, 
+    "saveFiles": true, 
+    "saveFolder": "MoleculeFK4", 
+    "saveNpz": true, 
+    "vss": 1, 
+    "xOffset": 0, 
+    "yOffset": 0
+}

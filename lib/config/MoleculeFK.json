@@ -1,0 +1,51 @@
+{
+    "acqLength": 2, 
+    "adChannel": 0, 
+    "binning": true, 
+    "dx": 1024, 
+    "dy": 512, 
+    "emEnable": false, 
+    "emGain": 0, 
+    "expTime": 1.0, 
+    "filebase": "krbfk", 
+    "fss": [
+        [
+            [
+                0, 
+                0
+            ], 
+            [
+                0, 
+                1
+            ], 
+            [
+                1, 
+                0
+            ]
+        ], 
+        [
+            [
+                0, 
+                0
+            ], 
+            [
+                0, 
+                1
+            ], 
+            [
+                1, 
+                0
+            ]
+        ]
+    ], 
+    "hss": 0, 
+    "kinFrames": 2, 
+    "preAmpGain": 0, 
+    "rotateImage": true, 
+    "saveFiles": true, 
+    "saveFolder": "KRbFK", 
+    "vss": 1, 
+    "xOffset": 0, 
+    "yOffset": 0,
+    "saveNpz": true
+}
