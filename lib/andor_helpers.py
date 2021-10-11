@@ -10,14 +10,6 @@ with open('./lib/serials.json') as f:
 	from json import load
 	KRBCAM_SERIALS = load(f)
 
-#########################
-## Database connection ##
-#########################
-
-with open('./lib/mongodb.json') as f:
-	from json import load
-	MONGODB_CONFIG = load(f)
-
 #########################################################################################
 ############# Don't change stuff below this line unless you mean it! ####################
 #########################################################################################
