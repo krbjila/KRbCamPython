@@ -797,7 +797,7 @@ class MainWindow(QtGui.QWidget):
             if self.shot_to_save is None or self.shot_to_save == -1:
                 self.appendToStatus("Could not save to database! Shot number is not set.\n")
             else:
-                update = {
+                update = [{
                     "$set": {
                         "images": {
                             metadata["name"]: {
@@ -805,10 +805,7 @@ class MainWindow(QtGui.QWidget):
                             }
                         }
                     },
-                    "$setOnInsert": {
-                        "time": now
-                    }
-                }
+                }]
                 try:
                     # TODO: See if this actually works...
                     s = yield self.database.update_one(bsondumps({'_id': id}), bsondumps(update))
