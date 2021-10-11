@@ -31,8 +31,7 @@ from twisted.internet import reactor
 
 try:
     import labrad
-    # sys.path.append("./client_tools")
-    from client_tools.connection import connection
+    from lib.client_tools.connection import connection
 except Exception as e:
     print("Could not import LabRAD: {}".format(e))
 
@@ -144,7 +143,7 @@ class MainWindow(QtGui.QWidget):
             self.configForm.shotEdit.setValue(str(shot))
         else:
             self.shot = None
-            self.configForm.shotEdit.setValue("None")
+            self.configForm.shotEdit.setText("None")
 
     def __init__(self, reactor):
         super(MainWindow, self).__init__(None)
@@ -525,6 +524,7 @@ class MainWindow(QtGui.QWidget):
                     self.setupLabRAD()
                     self.logging.get_shot()
                 except Exception as e2:
+                    print("Could not connect to LabRAD to get shot number: {}".format(e2))
                     self.appendToStatus("Could not connect to LabRAD to get shot number!\n")
                     self.setShotNumber(None, None)
 
