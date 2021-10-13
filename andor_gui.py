@@ -8,6 +8,7 @@ import twisted.internet.error
 import time
 import datetime
 import os
+import io
 
 import numpy as np
 from copy import deepcopy
@@ -792,16 +793,20 @@ class MainWindow(QtGui.QWidget):
             'path': path + (".npz" if form['saveNpz'] else ".csv") if save else None,
             'id': id
         }
+        reshaped = data_array.reshape((-1, form['dx']//metadata['binning'][0], form['dy']//metadata['binning'][0]))
 
         if database:
             if self.shot_to_save is None or self.shot_to_save == -1:
                 self.appendToStatus("Could not save to database! Shot number is not set.\n")
             else:
+                f = io.BytesIO()
+                np.savez(f, data=reshaped)
                 update = [{
                     "$set": {
                         "images": {
                             metadata["name"]: {
-                                "metadata": metadata
+                                "metadata": metadata,
+                                "data": f.getvalue()
                             }
                         }
                     },
@@ -831,9 +836,6 @@ class MainWindow(QtGui.QWidget):
             path_temp += ".npz"
 
             with open(path_temp, 'wb') as f:
-                reshaped = data_array.reshape((-1, form['dx']//metadata['binning'][0], form['dy']//metadata['binning'][0]))
-                print(reshaped.shape)
-
                 metadata['timestamp'] = now.strftime("%Y-%m-%d %H:%M:%S")
                 np.savez_compressed(f, data=reshaped, meta=metadata)
 
