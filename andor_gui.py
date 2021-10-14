@@ -16,6 +16,7 @@ from copy import deepcopy
 import json
 from bson.json_util import dumps as bsondumps
 from bson.json_util import loads as bsonloads
+from bson.binary import Binary as bsonbinary
 
 import sys
 sys.path.append("./lib/")
@@ -806,7 +807,7 @@ class MainWindow(QtGui.QWidget):
                         "images": {
                             metadata["name"]: {
                                 "metadata": metadata,
-                                "data": f.getvalue()
+                                "data": bsonbinary(f.getvalue())
                             }
                         }
                     },
